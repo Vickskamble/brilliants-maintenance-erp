@@ -50,6 +50,22 @@ function.
   reads and writes (see `src/types/database.ts`). RLS is not enabled;
   okay for a single-organization deployment.
 
+## Documentation
+
+Everything is documented under `docs/`:
+
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — stack, rendering model, auth & authorization flow,
+  project layout.
+- [MODULES.md](docs/MODULES.md) — every route, what it does, and which DB tables it touches.
+- [WORKFLOWS.md](docs/WORKFLOWS.md) — end-to-end flows per module.
+- [DATABASE.md](docs/DATABASE.md) — schema reference, triggers, migrations, design decisions.
+- [SERVICES.md](docs/SERVICES.md) — the data-access layer, function by function.
+- [UI-COMPONENTS.md](docs/UI-COMPONENTS.md) — component library and form primitives.
+- [CONFIG-ENV.md](docs/CONFIG-ENV.md) — env vars, config files, scripts, middleware.
+- [CONVENTIONS.md](docs/CONVENTIONS.md) — coding conventions and dev rules.
+- [KNOWN-GAPS.md](docs/KNOWN-GAPS.md) — partial tabs, inconsistencies, and a prioritized TODO.
+- [STATE-OF-REPO.md](docs/STATE-OF-REPO.md) — current module/database status snapshot.
+
 ## Verification
 
 ```bash

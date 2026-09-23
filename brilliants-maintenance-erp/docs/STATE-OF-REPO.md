@@ -1,6 +1,10 @@
 # Brilliants Maintenance ERP — State of the Repo
 
 > Updated: 2026-09-23.
+>
+> Full documentation set: **ARCHITECTURE · MODULES · WORKFLOWS · DATABASE · SERVICES ·
+> UI-COMPONENTS · CONFIG-ENV · CONVENTIONS · KNOWN-GAPS** (all in this `docs/` folder).
+> This file is a quick status snapshot.
 
 ## Modules
 
