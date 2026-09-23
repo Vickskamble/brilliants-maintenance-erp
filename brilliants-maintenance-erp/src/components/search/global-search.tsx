@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth/context";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { searchGlobal } from "@/services/search";
 import type { SearchModule, SearchGroup } from "@/services/search/types";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ interface FlatEntry {
 }
 
 export function GlobalSearch() {
-  const { organization, plant } = useAuth();
+  const scope = useQueryScope();
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -98,8 +98,8 @@ export function GlobalSearch() {
     const timer = setTimeout(async () => {
       try {
         const { groups: next } = await searchGlobal(
-          organization?.id ?? null,
-          plant?.id ?? null,
+          scope.organizationId,
+          scope.plantId,
           trimmed
         );
         if (current !== requestId.current) return;
@@ -115,7 +115,7 @@ export function GlobalSearch() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query, open, organization?.id, plant?.id]);
+  }, [query, open, scope.organizationId, scope.plantId]);
 
   function openItem(entry: FlatEntry) {
     const config = MODULE_CONFIG[entry.group.module];
