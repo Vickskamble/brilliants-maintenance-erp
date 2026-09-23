@@ -144,8 +144,8 @@ export async function changeWorkOrderStatus(
   if (error) return { data: null, error };
 
   if (oldStatus && oldStatus !== newStatus) {
-    await supabase.from("work_order_statuses").insert({
-      work_order_no: data.work_order_no,
+    await supabase.from("work_order_status_history").insert({
+      work_order_id: id,
       old_status: oldStatus,
       new_status: newStatus,
       remarks: remarks || null,

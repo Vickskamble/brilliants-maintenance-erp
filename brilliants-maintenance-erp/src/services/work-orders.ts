@@ -93,3 +93,60 @@ export async function updateWorkOrderStatus(
     .single();
   return { data: (data as unknown as WorkOrderRow) ?? null, error };
 }
+
+export async function changeWorkOrderStatus(
+  id: string,
+  newStatus: string,
+  remarks?: string
+): Promise<{ data: WorkOrderRow | null; error: Error | null }> {
+  const supabase = createClient();
+  const { data: current, error: fetchError } = await supabase
+    .from("work_orders")
+    .select("status")
+    .eq("id", id)
+    .single();
+  if (fetchError) return { data: null, error: fetchError };
+
+  const oldStatus = current?.status;
+  const { data, error } = await supabase
+    .from("work_orders")
+    .update({ status: newStatus })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) return { data: null, error };
+
+  if (oldStatus && oldStatus !== newStatus) {
+    await supabase.from("work_order_status_history").insert({
+      work_order_id: id,
+      old_status: oldStatus,
+      new_status: newStatus,
+      remarks: remarks || null,
+    });
+  }
+  return { data: (data as unknown as WorkOrderRow) ?? null, error: null };
+}
+
+export async function getWorkOrderStatusHistory(
+  workOrderId: string
+): Promise<{ data: unknown[] | null; error: Error | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("work_order_status_history")
+    .select("*")
+    .eq("work_order_id", workOrderId)
+    .order("changed_at", { ascending: false });
+  return { data, error };
+}
+
+export async function getWorkOrderActivities(
+  workOrderId: string
+): Promise<{ data: unknown[] | null; error: Error | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("work_order_activities")
+    .select("*")
+    .eq("work_order_id", workOrderId)
+    .order("started_at", { ascending: false });
+  return { data, error };
+}

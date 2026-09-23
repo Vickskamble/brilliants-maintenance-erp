@@ -18,8 +18,7 @@ export interface StockMovement {
     | "breakdown_use"
     | "adjustment"
     | "scrap_out"
-    | "transfer_out"
-    | "transfer_in";
+    | "transfer";
   quantity: number;
   from_plant_id: string | null;
   to_plant_id: string | null;

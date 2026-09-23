@@ -36,7 +36,7 @@ export async function getSpareParts(params?: GetSparePartsParams) {
   }
 
   const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1     - 1;
+  const to = from + pageSize - 1;
   query = query.range(from, to).order("part_code");
 
   const { data, error, count } = await query;
@@ -104,7 +104,9 @@ export async function getTrackingRecords(workOrderId: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("stock_movements")
-    .select("*, work_orders!inner(id, work_order_no)")
+    .select(
+      `*, spare_parts(part_code, part_name, unit), work_orders!inner(id, work_order_no)`
+    )
     .eq("work_order_id", workOrderId)
     .order("created_at", { ascending: false });
   return { data: data || [], error };

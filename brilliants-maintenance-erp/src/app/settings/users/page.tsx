@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
@@ -18,6 +19,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function UsersPage() {
           title="Users"
           description="Manage user accounts and profiles"
           action={
-            <Button>
+            <Button onClick={() => setIsDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add User
             </Button>
@@ -143,6 +145,32 @@ export default function UsersPage() {
             </CardContent>
           </Card>
         )}
+
+        <Dialog
+          open={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          title="Add User"
+          description="How to grant access for a new user."
+        >
+          <div className="space-y-4">
+            <p className="text-sm leading-relaxed text-gray-600">
+              User accounts are created in{" "}
+              <span className="font-medium text-gray-900">Supabase Authentication</span>{" "}
+              (Dashboard → Authentication → Users → Invite user). Client-side invite is
+              not available with the current security settings.
+            </p>
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-600">
+              <li>Invite the user from the Supabase Dashboard using their email.</li>
+              <li>Once the user signs up, they appear in this list automatically.</li>
+              <li>Assign them a role from the Roles page to grant permissions.</li>
+            </ol>
+            <div className="flex items-center justify-end border-t border-gray-100 pt-4">
+              <Button type="button" onClick={() => setIsDialogOpen(false)}>
+                Got it
+              </Button>
+            </div>
+          </div>
+        </Dialog>
       </div>
     </ERPLayout>
   );

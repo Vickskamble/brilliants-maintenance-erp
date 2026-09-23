@@ -42,6 +42,8 @@ export async function addEquipmentComponent(
   payload: {
     component_name: string;
     component_type?: string | null;
+    serial_number?: string | null;
+    criticality?: string | null;
     specification?: string | null;
     part_code_ref?: string | null;
   }
@@ -105,4 +107,51 @@ export async function getEquipmentStatusHistory(equipmentId: string): Promise<{
     .eq("equipment_id", equipmentId)
     .order("created_at", { ascending: false });
   return { data, error };
+}
+
+export async function updateEquipment(
+  id: string,
+  payload: Record<string, unknown>
+): Promise<{ data: unknown; error: Error | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("equipment")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  return { data, error };
+}
+
+export async function changeEquipmentStatus(
+  id: string,
+  newStatus: string,
+  reason?: string
+): Promise<{ data: unknown; error: Error | null }> {
+  const supabase = createClient();
+  const { data: current, error: fetchError } = await supabase
+    .from("equipment")
+    .select("status")
+    .eq("id", id)
+    .single();
+  if (fetchError) return { data: null, error: fetchError };
+
+  const oldStatus = current?.status;
+  const { data, error } = await supabase
+    .from("equipment")
+    .update({ status: newStatus })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) return { data: null, error };
+
+  if (oldStatus && oldStatus !== newStatus) {
+    await supabase.from("equipment_status_history").insert({
+      equipment_id: id,
+      old_status: oldStatus,
+      new_status: newStatus,
+      reason: reason || null,
+    });
+  }
+  return { data, error: null };
 }

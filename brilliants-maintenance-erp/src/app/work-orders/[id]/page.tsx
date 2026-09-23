@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
-import { StatusBadge } from "@/components/common/status-badge";
-import { CardHeader, CardTitle, Card, CardContent } from "@/components/ui/card";
+import { StatusBadge as StatusBadgeMeta } from "@/components/common/status-badge";
+import { StatusBadge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
@@ -14,14 +15,46 @@ import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { formatDateTime } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { getWorkOrder } from "@/services/work-orders";
-import { WorkOrder, Plant, Equipment } from "@/types/database";
+import {
+  getWorkOrder,
+  getWorkOrderActivities,
+  getWorkOrderStatusHistory,
+} from "@/services/work-orders";
+import { WorkOrder } from "@/types/database";
 import { WORK_ORDER_TYPES, WORK_ORDER_STATUSES, PRIORITY_LEVELS } from "@/lib/constants";
-import { ChevronRight, Plus } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 interface WorkOrderDetail extends WorkOrder {
   plants?: { name: string } | null;
   equipment?: { equipment_code: string; equipment_name: string } | null;
+}
+
+interface ActivityRow {
+  id: string;
+  activity_type: string | null;
+  description: string | null;
+  started_at: string;
+  ended_at: string | null;
+  note: string | null;
+}
+
+interface HistoryRow {
+  id: string;
+  old_status: string | null;
+  new_status: string;
+  remarks: string | null;
+  changed_at: string;
+}
+
+interface SpareRecordRow {
+  id: string;
+  part_id: string;
+  movement_type: string;
+  quantity: number;
+  reference_no: string | null;
+  note: string | null;
+  created_at: string;
+  spare_parts: { part_code: string; part_name: string; unit: string | null }[] | null;
 }
 
 export default function WorkOrderDetailPage() {
@@ -32,7 +65,9 @@ export default function WorkOrderDetailPage() {
   const [workOrder, setWorkOrder] = useState<WorkOrderDetail | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [isLoading, setIsLoading] = useState(true);
-  const [spares, setSpares] = useState<Array<{ id: string; spare_part: { part_code: string; part_name: string } | null; quantity: number | null }>>([]);
+  const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [spares, setSpares] = useState<SpareRecordRow[]>([]);
 
   const tabs = [
     { key: "overview", label: "Overview" },
@@ -43,8 +78,20 @@ export default function WorkOrderDetailPage() {
 
   async function load() {
     setIsLoading(true);
-    const { data, error } = await getWorkOrder(id);
-    if (data) setWorkOrder(data as unknown as WorkOrderDetail);
+    const [woRes, activityRes, historyRes, spareRes] = await Promise.all([
+      getWorkOrder(id),
+      getWorkOrderActivities(id),
+      getWorkOrderStatusHistory(id),
+      supabase
+        .from("stock_movements")
+        .select("*, spare_parts(part_code, part_name, unit)")
+        .eq("work_order_id", id)
+        .order("created_at", { ascending: false }),
+    ]);
+    if (woRes.data) setWorkOrder(woRes.data as unknown as WorkOrderDetail);
+    if (activityRes.data) setActivities(activityRes.data as unknown as ActivityRow[]);
+    if (historyRes.data) setHistory(historyRes.data as unknown as HistoryRow[]);
+    if (spareRes.data) setSpares(spareRes.data as unknown as SpareRecordRow[]);
     setIsLoading(false);
   }
 
@@ -102,7 +149,7 @@ export default function WorkOrderDetailPage() {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <StatusBadge statusMeta={statusMeta} />
+        <StatusBadgeMeta statusMeta={statusMeta} />
         <Badge className={typeMeta?.color}>{typeMeta?.label}</Badge>
         <Badge className={priorityMeta?.color}>{priorityMeta?.label}</Badge>
         {workOrder.plants?.name && (
@@ -130,6 +177,8 @@ export default function WorkOrderDetailPage() {
               <MetadataRow label="Planned End" value={fmt(workOrder.planned_end)} />
               <MetadataRow label="Actual Start" value={fmt(workOrder.actual_start)} />
               <MetadataRow label="Actual End" value={fmt(workOrder.actual_end)} />
+              <MetadataRow label="Verified At" value={fmt(workOrder.verified_at)} />
+              <MetadataRow label="Closed At" value={fmt(workOrder.closed_at)} />
             </div>
 
             {workOrder.description && (
@@ -137,22 +186,123 @@ export default function WorkOrderDetailPage() {
                 <p className="text-sm leading-relaxed text-gray-600">{workOrder.description}</p>
               </div>
             )}
+            {workOrder.closure_remarks && (
+              <div className="mt-2">
+                <p className="text-sm leading-relaxed text-gray-500">
+                  <span className="font-medium text-gray-700">Closure:</span> {workOrder.closure_remarks}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {activeTab === "details" && (
+      {activeTab === "activities" && (
         <Card>
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <MetadataRow label="Verified By" value={workOrder.verified_by} />
-              <MetadataRow label="Verified At" value={fmt(workOrder.verified_at)} />
-              <MetadataRow label="Closed By" value={workOrder.closed_by} />
-              <MetadataRow label="Closed At" value={fmt(workOrder.closed_at)} />
-              <MetadataRow label="Closure Remarks" value={workOrder.closure_remarks} />
-              <MetadataRow label="Created At" value={fmt(workOrder.created_at)} />
-              <MetadataRow label="Updated At" value={fmt(workOrder.updated_at)} />
-            </div>
+          <CardContent className="p-0">
+            {activities.length === 0 ? (
+              <EmptyState
+                title="No activities yet"
+                description="Activities recorded against this work order will appear here."
+              />
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {activities.map((a) => (
+                  <div key={a.id} className="px-6 py-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm font-medium text-gray-900">
+                        {a.activity_type?.replace(/_/g, " ") ?? "Activity"}
+                      </p>
+                      <p className="text-xs text-gray-500">{formatDateTime(a.started_at)}</p>
+                    </div>
+                    {a.description && (
+                      <p className="mt-1 text-sm text-gray-600">{a.description}</p>
+                    )}
+                    {a.note && <p className="mt-1 text-xs text-gray-400">{a.note}</p>}
+                    {a.ended_at && (
+                      <p className="mt-1 text-xs text-gray-400">
+                        Ended {formatDateTime(a.ended_at)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "spares" && (
+        <Card>
+          <CardContent className="p-0">
+            {spares.length === 0 ? (
+              <EmptyState
+                title="No spares issued"
+                description="Spare parts issued for this work order will appear here."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Part</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Movement</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Qty</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Reference</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {spares.map((s) => (
+                      <tr key={s.id}>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                          {s.spare_parts?.[0]?.part_code ?? "-"}
+                          <span className="ml-2 text-gray-500">{s.spare_parts?.[0]?.part_name ?? ""}</span>
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm capitalize text-gray-600">
+                          {s.movement_type.replace(/_/g, " ")}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-900">
+                          {s.quantity} {s.spare_parts?.[0]?.unit ?? ""}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                          {s.reference_no ?? "-"}
+                        </td>
+                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                          {formatDateTime(s.created_at)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === "history" && (
+        <Card>
+          <CardContent className="p-0">
+            {history.length === 0 ? (
+              <EmptyState title="No status changes yet" />
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {history.map((h) => (
+                  <div key={h.id} className="flex items-center justify-between px-6 py-4">
+                    <div className="flex items-center gap-3">
+                      <StatusBadge status={h.old_status ?? "draft"} />
+                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                      <StatusBadge status={h.new_status} />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-600">{formatDateTime(h.changed_at)}</p>
+                      {h.remarks && <p className="text-xs text-gray-400">{h.remarks}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

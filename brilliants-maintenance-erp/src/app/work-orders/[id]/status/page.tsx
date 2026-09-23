@@ -8,11 +8,13 @@ import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
-import { WORK_ORDER_STATUSES, WORK_ORDER_TYPES } from "@/lib/constants";
+import { changeWorkOrderStatus } from "@/services/work-orders";
+import { WORK_ORDER_STATUSES } from "@/lib/constants";
 import { WorkOrder } from "@/types/database";
 import { ChevronLeft, Save } from "lucide-react";
 
@@ -24,6 +26,7 @@ export default function ChangeWorkOrderStatusPage() {
 
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [status, setStatus] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -43,10 +46,7 @@ export default function ChangeWorkOrderStatusPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSaving(true);
-    const { error } = await supabase
-      .from("work_orders")
-      .update({ status, status_changed_at: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await changeWorkOrderStatus(id, status, remarks.trim() || undefined);
     setIsSaving(false);
     if (error) {
       window.alert(error.message);
@@ -98,6 +98,16 @@ export default function ChangeWorkOrderStatusPage() {
                   </option>
                 ))}
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="remarks">Remarks</Label>
+              <Textarea
+                id="remarks"
+                rows={3}
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Optional note recorded in the status history"
+              />
             </div>
             <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6">
               <Link href={`/work-orders/${workOrder.id}`}>

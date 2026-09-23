@@ -31,6 +31,7 @@ export default function StockMovementPage() {
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     movement_type: "purchase_in",
+    plant_id: "",
     quantity: 1,
     reference_no: "",
     note: "",
@@ -68,6 +69,20 @@ export default function StockMovementPage() {
       form.movement_type.includes("in");
     const direction = isIn ? 1 : -1;
 
+    const mtype = form.movement_type;
+    const plantId = form.plant_id || null;
+    const plantFields =
+      mtype === "purchase_in" ||
+      mtype === "return_in" ||
+      mtype === "adjustment" ||
+      mtype === "transfer"
+        ? { to_plant_id: plantId }
+        : mtype === "workorder_issue" ||
+            mtype === "breakdown_use" ||
+            mtype === "scrap_out"
+          ? { from_plant_id: plantId }
+          : {};
+
     if (sparePart) {
       await supabase
         .from("spare_parts")
@@ -79,8 +94,10 @@ export default function StockMovementPage() {
 
     const { error } = await supabase.from("stock_movements").insert({
       part_id: id,
-      movement_type: form.movement_type,
+      movement_type: mtype,
       quantity: form.quantity,
+      plant_id: plantId,
+      ...plantFields,
       reference_no: form.reference_no || null,
       note: form.note || null,
     });
@@ -141,6 +158,21 @@ export default function StockMovementPage() {
                 {STOCK_MOVEMENT_TYPES.map((m) => (
                   <option key={m.value} value={m.value}>
                     {m.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="plant_id">Plant</Label>
+              <Select
+                id="plant_id"
+                value={form.plant_id}
+                onChange={(e) => setForm({ ...form, plant_id: e.target.value })}
+              >
+                <option value="">Select plant</option>
+                {plants.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </Select>
