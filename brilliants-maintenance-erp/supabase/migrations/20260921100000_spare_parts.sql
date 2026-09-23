@@ -53,7 +53,7 @@ create table if not exists public.stock_movements (
 );
 
 create index if not exists idx_stock_movements_part on public.stock_movements(part_id);
-create index if not exists idx_stock_movements_created on public.stock_movements(created_at desc(elapsed));
+create index if not exists idx_stock_movements_created on public.stock_movements(created_at desc);
 
 -- ---------- trigger: keep spare_parts.current_stock in sync ----------
 create or replace function public.sync_spare_part_stock()
@@ -121,7 +121,7 @@ begin
 end;
 $$;
 
-drop trigger if exists trg_spare_parts_updated at public.spare_parts;
+drop trigger if exists trg_spare_parts_updated on public.spare_parts;
 create trigger trg_spare_parts_updated
   before update on public.spare_parts
   for each row execute function public.set_updated_at();

@@ -6,7 +6,7 @@ export type SparePartRow = {
   part_name: string;
   category: string | null;
   unit: string | null;
-  stock_level: number;
+  current_stock: number;
   reorder_level: number;
   min_stock: number;
   plant_id: string;

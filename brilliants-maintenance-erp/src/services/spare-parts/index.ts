@@ -29,10 +29,10 @@ export async function getSpareParts(params?: GetSparePartsParams) {
   }
 
   if (lowStockOnly) {
-    query = query.lt("stock_level", "reorder_level");
+    query = query.lt("current_stock", "reorder_level");
   }
   if (outOfStockOnly) {
-    query = query.eq("stock_level", 0);
+    query = query.eq("current_stock", 0);
   }
 
   const from = (page - 1) * pageSize;

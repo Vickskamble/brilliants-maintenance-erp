@@ -53,7 +53,7 @@ export default function NewSparePartPage() {
       unit: form.unit,
       min_stock: form.min_stock,
       reorder_level: form.reorder_level,
-      stock_level: form.initial_quantity,
+      current_stock: form.initial_quantity,
       location: form.location || null,
       description: form.description || null,
     });

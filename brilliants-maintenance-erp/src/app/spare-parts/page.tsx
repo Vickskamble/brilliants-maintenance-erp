@@ -37,7 +37,7 @@ interface SparePartRow {
   part_name: string;
   category: string;
   unit: string;
-  stock_level: number;
+  current_stock: number;
   reorder_level: number;
   min_stock: number;
   plant_id: string;
@@ -72,15 +72,15 @@ export default function SparePartsListPage() {
     let query = supabase
       .from("spare_parts")
       .select(
-        `id, part_code, part_name, category, unit, stock_level, reorder_level, min_stock, plant_id,
+        `id, part_code, part_name, category, unit, current_stock, reorder_level, min_stock, plant_id,
          plants(name)`,
         { count: "exact" }
       );
 
     if (plantId !== "all") query = query.eq("plant_id", plantId);
     if (category !== "all") query = query.eq("category", category);
-    if (lowStockOnly) query = query.lt("stock_level", "reorder_level");
-    if (outOfStockOnly) query = query.eq("stock_level", 0);
+    if (lowStockOnly) query = query.lt("current_stock", "reorder_level");
+    if (outOfStockOnly) query = query.eq("current_stock", 0);
 
     if (search) {
       query = query.or(
@@ -221,8 +221,8 @@ export default function SparePartsListPage() {
                 </TableHeader>
                 <TableBody>
                   {rows.map((r) => {
-                    const low = r.stock_level <= r.reorder_level;
-                    const out = r.stock_level === 0;
+                    const low = r.current_stock <= r.reorder_level;
+                    const out = r.current_stock === 0;
                     return (
                       <TableRow
                         key={r.id}
@@ -248,7 +248,7 @@ export default function SparePartsListPage() {
                                   : "text-gray-900"
                             }
                           >
-                            {r.stock_level} {r.unit}
+                            {r.current_stock} {r.unit}
                           </span>
                         </TableCell>
                         <TableCell className="text-right text-gray-600">
