@@ -52,6 +52,7 @@ function DropdownMenuContent({
   align = "end",
 }: React.PropsWithChildren<{ className?: string; align?: "start" | "end" }>) {
   const { open } = React.useContext(DropdownMenuContext);
+  const close = useClose();
   if (!open) return null;
   return (
     <div
@@ -61,7 +62,7 @@ function DropdownMenuContent({
         " " +
         (className ?? "")
       }
-      onClick={useClose()}
+      onClick={close}
     >
       {children}
     </div>
