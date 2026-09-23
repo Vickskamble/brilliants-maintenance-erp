@@ -58,10 +58,18 @@ export default function NewEquipmentPage() {
   const [criticalities, setCriticalities] = useState<
     { id: string; name: string; level: string | null }[]
   >([]);
+  const [departments, setDepartments] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   useEffect(() => {
     loadRefs();
   }, []);
+
+  useEffect(() => {
+    loadDepartments(values.plant_id);
+    setValues((prev) => ({ ...prev, department_id: null, section_id: null }));
+  }, [values.plant_id]);
 
   async function loadRefs() {
     const [p, c, cr] = await Promise.all([
@@ -76,6 +84,14 @@ export default function NewEquipmentPage() {
     if (c.data) setCategories(c.data);
     if (cr.data) setCriticalities(cr.data);
     setIsLoadingRefs(false);
+    loadDepartments("");
+  }
+
+  async function loadDepartments(plant: string) {
+    let query = supabase.from("departments").select("id, name").order("name");
+    if (plant) query = query.eq("plant_id", plant);
+    const { data } = await query;
+    if (data) setDepartments(data);
   }
 
   function update(field: keyof EquipmentFormValues, value: unknown) {
@@ -175,6 +191,20 @@ export default function NewEquipmentPage() {
                   options={plants.map((pl) => ({
                     value: pl.id,
                     label: pl.name,
+                  }))}
+                />
+                <Select
+                  id="department_id"
+                  label="Department"
+                  value={values.department_id ?? ""}
+                  onChange={(e) =>
+                    update("department_id", e.target.value || null)
+                  }
+                  error={errors.department_id}
+                  placeholder="Select department"
+                  options={departments.map((d) => ({
+                    value: d.id,
+                    label: d.name,
                   }))}
                 />
                 <Select

@@ -32,6 +32,7 @@ interface EquipmentRowItem {
   plant_id: string | null;
   category_id: string | null;
   criticality_id: string | null;
+  department_id: string | null;
   status: string;
   manufacturer: string | null;
   make: string | null;
@@ -39,6 +40,7 @@ interface EquipmentRowItem {
   asset_categories: { name: string }[] | null;
   criticality_profiles: { name: string; level: string | null }[] | null;
   plants: { name: string }[] | null;
+  departments: { name: string }[] | null;
 }
 
 export default function EquipmentListPage() {
@@ -52,6 +54,7 @@ export default function EquipmentListPage() {
   const [categoryId, setCategoryId] = useState("");
   const [criticalityId, setCriticalityId] = useState("");
   const [status, setStatus] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
 
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>(
@@ -60,10 +63,18 @@ export default function EquipmentListPage() {
   const [criticalities, setCriticalities] = useState<
     { id: string; name: string }[]
   >([]);
+  const [departments, setDepartments] = useState<
+    { id: string; name: string }[]
+  >([]);
 
   useEffect(() => {
     loadFilterOptions();
   }, []);
+
+  useEffect(() => {
+    loadDepartments(plantId);
+    setDepartmentId("");
+  }, [plantId]);
 
   async function loadFilterOptions() {
     const [plantsRes, categoriesRes, critRes] = await Promise.all([
@@ -77,11 +88,19 @@ export default function EquipmentListPage() {
     if (plantsRes.data) setPlants(plantsRes.data);
     if (categoriesRes.data) setCategories(categoriesRes.data);
     if (critRes.data) setCriticalities(critRes.data);
+    loadDepartments("");
+  }
+
+  async function loadDepartments(plant: string) {
+    let query = supabase.from("departments").select("id, name").order("name");
+    if (plant) query = query.eq("plant_id", plant);
+    const { data } = await query;
+    if (data) setDepartments(data);
   }
 
   useEffect(() => {
     loadEquipments();
-  }, [plantId, categoryId, criticalityId, status]);
+  }, [plantId, categoryId, criticalityId, status, departmentId]);
 
   async function loadEquipments() {
     setIsLoading(true);
@@ -96,13 +115,15 @@ export default function EquipmentListPage() {
         plant_id,
         category_id,
         criticality_id,
+        department_id,
         status,
         manufacturer,
         make,
         created_at,
         asset_categories(name),
         criticality_profiles(name, level),
-        plants(name)
+        plants(name),
+        departments(name)
       `
       )
       .order("equipment_code");
@@ -111,6 +132,7 @@ export default function EquipmentListPage() {
     if (categoryId) query = query.eq("category_id", categoryId);
     if (criticalityId) query = query.eq("criticality_id", criticalityId);
     if (status) query = query.eq("status", status);
+    if (departmentId) query = query.eq("department_id", departmentId);
 
     const { data, error } = await query;
 
@@ -176,6 +198,18 @@ export default function EquipmentListPage() {
       ),
     },
     {
+      id: "department",
+      header: "Department",
+      filterable: true,
+      filterPlaceholder: "Filter department",
+      accessorFn: (row) => row.departments?.[0]?.name ?? "",
+      cell: (row) => (
+        <span className="text-sm text-gray-600">
+          {row.departments?.[0]?.name ?? "-"}
+        </span>
+      ),
+    },
+    {
       id: "status",
       header: "Status",
       accessorFn: (row) => row.status,
@@ -208,6 +242,7 @@ export default function EquipmentListPage() {
           "Category",
           "Criticality",
           "Plant",
+          "Department",
           "Status",
         ];
         exportRowsToCsv(
@@ -219,6 +254,7 @@ export default function EquipmentListPage() {
             r.asset_categories?.[0]?.name ?? "",
             r.criticality_profiles?.[0]?.name ?? "",
             r.plants?.[0]?.name ?? "",
+            r.departments?.[0]?.name ?? "",
             r.status,
           ])
         );
@@ -244,12 +280,18 @@ export default function EquipmentListPage() {
 
         <Card>
           <CardContent className="p-0">
-            <div className="grid flex-1 grid-cols-2 gap-3 border-b border-gray-200 p-4 md:grid-cols-4">
+            <div className="grid flex-1 grid-cols-2 gap-3 border-b border-gray-200 p-4 lg:grid-cols-5">
               <Select
                 value={plantId}
                 onChange={(e) => setPlantId(e.target.value)}
                 placeholder="All plants"
                 options={plants.map((p) => ({ value: p.id, label: p.name }))}
+              />
+              <Select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                placeholder="All departments"
+                options={departments.map((d) => ({ value: d.id, label: d.name }))}
               />
               <Select
                 value={categoryId}
