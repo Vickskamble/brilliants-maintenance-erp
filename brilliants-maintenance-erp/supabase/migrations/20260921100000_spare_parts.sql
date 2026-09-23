@@ -45,7 +45,9 @@ create table if not exists public.stock_movements (
   quantity integer not null check (quantity <> 0),
   from_plant_id uuid references public.plants(id),
   to_plant_id uuid references public.plants(id),
-  work_order_id uuid references public.work_orders(id),
+  -- work_order_id links to work_orders, but that table is created later
+  -- (20260923100000_app_schema.sql); the FK is added conversely there.
+  work_order_id uuid,
   reference_no text,
   note text,
   created_by uuid references auth.users(id),

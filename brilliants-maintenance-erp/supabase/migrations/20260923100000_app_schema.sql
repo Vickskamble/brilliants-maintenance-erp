@@ -488,6 +488,22 @@ create table if not exists public.spare_part_stock_movements (
 alter table public.stock_movements
   add column if not exists plant_id uuid references public.plants(id) on delete set null;
 
+-- restore the FK that 20260921100000_spare_parts.sql intentionally defers,
+-- now that work_orders exists (applied earlier in this file).
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'fk_stock_movements_work_order'
+      and conrelid = 'public.stock_movements'::regclass
+  ) then
+    alter table public.stock_movements
+      add constraint fk_stock_movements_work_order
+      foreign key (work_order_id) references public.work_orders(id) on delete set null;
+  end if;
+end;
+$$;
+
 -- ---------- indexes ----------
 create index if not exists idx_equipment_plant on public.equipment(plant_id);
 create index if not exists idx_equipment_category on public.equipment(category_id);
