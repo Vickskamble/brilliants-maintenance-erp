@@ -32,6 +32,29 @@ Status snapshot and known issues, last reviewed 2026-09-23 (post gap-fix batch).
 18. **Next.js middleware → proxy** — `src/middleware.ts` migrated to `src/proxy.ts`;
     build logs show `ƒ Proxy (Middleware)`.
 
+## Environment / remote DB (2026-09-23)
+
+- **Project `ironbook` (`ekjakdhxodugncdpwkrj`) hosts a legacy gym app too** — 25 gym tables
+  (`gyms`, `members`, `partners`, `staff`, `attendance`, `payments`, `inventory`, `expenses`,
+  `notifications`, …), **14 existing auth users**, and 12 legacy `profiles`.
+- **`profiles` schema collision** — the legacy `profiles` (with `gym_id`, `role`, `is_active`)
+  existed before our migrations, so `create table if not exists profiles` was silently skipped.
+  Fixed non-destructively: added our columns (`organization_id`, `employee_code`,
+  `department_id`, `plant_id`, `status`) to the existing table. All other 32 ERP tables match our
+  migrations exactly.
+- **`seed.sql` applied via the Management API query endpoint** (postgres SQL access through the
+  access token — no DB password/psql needed): 1 org (`Brilliants`/BRI), 1 plant (Pune Plant),
+  3 system roles, 42 permissions, 84 role-permission grants. Idempotent; safe to re-run.
+- **Admin wiring** — the seed's "first user" rule originally granted ADMIN to the oldest
+  existing auth user (`testuser@ironbook.com`); that grant was removed and **ERP ADMIN moved to
+  `admin@brilliants.in`**, keeping the ERP admin distinct from the gym app's admin
+  (`admin@ironbook.com` / `superadmin@ironbook.com`). All 12 profiles were pointed at the seeded
+  org + plant, so any existing / newly created auth user logs into a working ERP (profile → org →
+  plant → roles).
+- **No auto-profile trigger** — auth signup does NOT create a `profiles` row (no
+  `handle_new_user` trigger); new ERP users need a `profiles` insert (seed handles the first
+  created user) or a manual insert, then a `user_roles` grant.
+
 ## Still open
 
 7. **Spare-part stock triple mirrors** — `spare_part_plants` (list page), `spare_part_stock`
@@ -64,8 +87,9 @@ Status snapshot and known issues, last reviewed 2026-09-23 (post gap-fix batch).
 
 ## Suggested next steps (in priority order)
 
-1. Kubernetes/deploy target decision + run `supabase db reset` to load `seed.sql`, then invite
-   the first user from Supabase Auth.
+1. Log in as `admin@brilliants.in` in Supabase Auth (reset its password there if needed), then
+   smoke-test the app end-to-end (login, create equipment, work order, spare-part movement,
+   status transitions).
 2. Standardize the stock tables (#7) and movement vocabulary, or drop the unused mirrors.
 3. Consolidate duplicate service modules (#12).
 4. Header cleanup (#15, #16) and low-stock filter (#17).

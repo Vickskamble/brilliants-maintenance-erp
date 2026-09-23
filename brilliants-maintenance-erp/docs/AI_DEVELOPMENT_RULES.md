@@ -435,3 +435,87 @@ Before saying "Done":
 - [ ] Git checkpoint created
 
 **If any applicable item is not satisfied, the task is not finished.**
+
+---
+
+## 21. PHASED ROADMAP — ERP FOUNDATION (NON-BREAKING INCREMENTS)
+
+> **Goal:** Upgrade the app to an enterprise ERP interaction layer (SAP / Zoho / Odoo /
+> ERPNext level) **without breaking or corrupting any working code, table, service, page,
+> or workflow.**
+>
+> Every phase below must follow the golden rule: **incremental, additive, rollback-able**.
+> Do not remove, rename, or rewrite existing functionality in one shot.
+
+### 21.1 Verified baseline (2026-09-23 audit)
+
+- `@tanstack/react-table` `^9.2.4` is installed but **unused** — available for `ERPDataTable`.
+- No charting library is installed (dashboard charts are hand-rolled divs).
+- `src/hooks/use-permissions.ts` provides `canView/canCreate/canEdit/canDelete/canManage`,
+  but pages do not consistently enforce them on direct routes/actions.
+- Service layer is duplicated: `services/equipment.ts` + `services/equipment/`,
+  `services/work-orders.ts` + `services/work-orders/`, `services/spare-parts.ts` +
+  `services/spare-parts/`. Consolidate **only after** dependency mapping (see Phase 9).
+- Domain/DB foundation is strong (departments → sections → areas → locations →
+  equipment; WO → activities → stock movements → status history).
+
+### 21.2 Explicit NON-GOALS (do NOT do in any phase)
+
+- ❌ Rewrite the existing `DataTable`, services, DB schema, or all pages together.
+- ❌ Rename/delete existing DB tables, columns, or roles (only additive SQL).
+- ❌ Replace existing *working* pages/forms with new UIs in one batch.
+- ❌ Increase work without verification — one feature per commit per build.
+
+### 21.3 Standard migration strategy for every feature
+
+1. Existing system backup / git checkpoint
+2. Build new component/service/table (additive)
+3. Typecheck + build green
+4. Verify existing modules unaffected
+5. Migrate ONE page (pilot = Equipment list)
+6. Verify + commit
+7. Replicate to next page
+8. Never multi-page or multi-module in a single change
+
+### 21.4 Phase plan
+
+| Phase | Focus | Key deliverables | Risk |
+|-------|-------|------------------|------|
+| 0 | Safety baseline | branch strategy, `npx tsc --noEmit` + `npm run build` green, current-stable checkpoint | 🟢 |
+| 1 | ERP UI foundation | `src/components/erp/` set + reusable `ERPDataTable` (search/filter/sort/select/bulk/column mgr/saved views/export/pagination/row actions) using TanStack Table; existing `DataTable` untouched | 🟢 |
+| 2 | Data-entry & master-detail | `ERPModal`, `ERPDrawer`, `ERPForm`, quick-add; `ERPDetailLayout`, `ERPTabs`, `ERPLineItemTable`, `ERPActivityTimeline`, `ERPAttachmentPanel`, `ERPAuditHistory` | 🟢 |
+| 3 | Global search | `src/components/search/` dialogs + `src/services/search/`, Ctrl+K, module-scoped results (WO/Equipment/Spare/Vendor/PM/Breakdown) | 🟢 |
+| 4 | Security & context | route/action permission guards; plant scoping through shared query context; master-data UI (departments/sections/areas/locations/cost centers/asset categories/criticality/BOM); RLS hardening (additive, reviewed) | 🟡 |
+| 5 | Workflow & SLA | additive `workflow_definitions/steps/instances/approvals` + `sla_rules`; reuse current statuses; allowed-transition checks | 🟡 |
+| 6 | Multi-view UI | `ERPKanban` (WO), `ERPCalendar` (PM/Calibration/Shutdown), `ERPAssetTree` (plant→department→…→equipment→components), `ERPGantt` (shutdown) — presentation layers only | 🟡 |
+| 7 | Inventory + procurement | MR/requisition → PO → GRN over existing `stock_movements` ledger; vendor evaluation; existing inventory engine reused | 🟡 |
+| 8 | Notifications | additive `notifications` + `notification_preferences`; engine for PM_DUE / PM_OVERDUE / CALIBRATION_DUE / WO_ASSIGNED / BREAKDOWN_SLA / LOW_STOCK / APPROVAL_REQUIRED; in-app first, email later | 🟡 |
+| 9 | Analytics + platform | reports engine (MTBF/MTTR/downtime/cost/PM compliance/SLA/Pareto) with a real chart library; export (CSV/Excel/PDF/Print); scheduled reports; generic CSV import; central `attachments` + `audit_logs`; service-layer consolidation; mobile/i18n/currency polish | 🟡/🟢 |
+
+### 21.5 Per-phase guardrails
+
+- **Phase 1**: build `ERPDataTable` standalone; migrate Equipment as pilot only; keep
+  `src/components/ui/data-table.tsx` intact for other modules.
+- **Phase 2**: new form/detail components are additive; existing `/new` and detail routes stay.
+- **Phase 4**: permission checks are UI enforcement; server-side security remains Supabase
+  RLS — never weaken auth/RLS to ship a screen.
+- **Phase 5**: workflow tables are new; never alter existing WO status values relied on by
+  pages/history/queries.
+- **Phase 9**: consolidate duplicate services only after mapping all imports; keep both
+  compatible until migration verified.
+
+### 21.6 PHASE GATE — next phase starts ONLY after this phase is build-green
+
+> **Hard rule:** `npx tsc --noEmit` **AND** `npm run build` must both PASS, and the completed
+> phase work must be committed, **before** any work on the next phase begins.
+
+Phase N is considered **DONE** and Phase N+1 may **only** start when ALL of these hold:
+
+- [ ] All Phase N deliverables merged/committed (existing modules verified unaffected)
+- [ ] `npx tsc --noEmit` → PASS
+- [ ] `npm run build` → PASS
+- [ ] No open broken imports, lint-blocking errors, or TODOs left behind by the phase
+- [ ] Phase pilot page (Equipment) verified working in browser
+
+**If any gate fails → fix, don't proceed.** No skipping phases, no parallel phase work,
+no "start next phase while previous build is red".
