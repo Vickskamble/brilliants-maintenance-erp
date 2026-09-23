@@ -10,6 +10,7 @@ import {
   User,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { GlobalSearch } from "@/components/search/global-search";
 
 export function Header() {
   const { profile, organization, plant, plants, setSelectedPlant, signOut } =
@@ -93,6 +94,8 @@ export function Header() {
             <span>{plant.name}</span>
           </div>
         )}
+
+        <GlobalSearch />
 
         <button className="relative rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
           <Bell className="h-5 w-5" />
