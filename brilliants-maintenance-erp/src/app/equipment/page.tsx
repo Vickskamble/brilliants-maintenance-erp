@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ERPLayout } from "@/components/layout/erp-layout";
+import { PermissionGate } from "@/components/auth/permission-gate";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -264,17 +265,24 @@ export default function EquipmentListPage() {
 
   return (
     <ERPLayout>
+      <PermissionGate module="equipment" action="view">
       <div className="space-y-6">
         <PageHeader
           title="Equipment"
           description="Manage equipment assets, components and maintenance records."
           action={
-            <Link href="/equipment/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Equipment
-              </Button>
-            </Link>
+            <PermissionGate
+              module="equipment"
+              action="create"
+              fallback={null}
+            >
+              <Link href="/equipment/new">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Equipment
+                </Button>
+              </Link>
+            </PermissionGate>
           }
         />
 
@@ -346,6 +354,7 @@ export default function EquipmentListPage() {
           </CardContent>
         </Card>
       </div>
+      </PermissionGate>
     </ERPLayout>
   );
 }
