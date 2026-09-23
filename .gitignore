@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+
+# next.js build output
+.next/
+out/
+build/
+
+# env files (contain secrets - NEVER commit)
+.env*
+!.env.example
+
+# logs & build artifacts
+*.log
+build-log*.txt
+*.tsbuildinfo
+
+# misc
+.DS_Store
+*.pem
+.vercel
