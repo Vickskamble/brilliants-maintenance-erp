@@ -10,10 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Badge, StatusBadge } from "@/components/ui/badge";
-import { Dialog } from "@/components/ui/dialog";
-import { Tabs } from "@/components/ui/tabs";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
+import { ERPDetailLayout, ERPDetailSection } from "@/components/erp/erp-detail-layout";
+import { ERPTabs } from "@/components/erp/erp-tabs";
+import { ERPQuickAdd } from "@/components/erp/erp-quick-add";
+import { ERPLineItemTable } from "@/components/erp/erp-line-item-table";
+import { ERPActivityTimeline } from "@/components/erp/erp-activity-timeline";
 import { createClient } from "@/lib/supabase/client";
 import { MetadataRow } from "@/components/common/metadata-row";
 import {
@@ -99,6 +102,7 @@ export default function EquipmentDetailPage() {
   const [calibrations, setCalibrations] = useState<CalibrationRow[]>([]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSavingComponent, setIsSavingComponent] = useState(false);
   const [componentForm, setComponentForm] = useState({
     component_name: "",
     component_type: "",
@@ -166,19 +170,21 @@ export default function EquipmentDetailPage() {
     setIsDialogOpen(true);
   }
 
-  async function addNewComponent(e: React.FormEvent) {
-    e.preventDefault();
+  async function addNewComponent(e?: React.FormEvent) {
+    e?.preventDefault();
     if (!componentForm.component_name.trim()) {
       setComponentError("Component name is required");
       return;
     }
     setComponentError("");
+    setIsSavingComponent(true);
     const { error } = await addEquipmentComponent(id, {
       component_name: componentForm.component_name.trim(),
       component_type: componentForm.component_type.trim() || null,
       serial_number: componentForm.serial_number.trim() || null,
       criticality: componentForm.criticality,
     });
+    setIsSavingComponent(false);
     if (error) {
       setComponentError(error.message);
       return;
@@ -239,7 +245,7 @@ export default function EquipmentDetailPage() {
 
   return (
     <ERPLayout>
-      <div className="space-y-6">
+      <ERPDetailLayout>
         <PageHeader
           title={equipment.equipment_name}
           description={`${equipment.equipment_code} · ${equipment.asset_categories?.name ?? "Uncategorised"}`}
@@ -274,40 +280,106 @@ export default function EquipmentDetailPage() {
           )}
         </div>
 
-        <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
+        <ERPTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
         {activeTab === "overview" && (
-          <Card>
-            <CardContent className="space-y-0 p-0">
-              <div className="grid grid-cols-1 gap-px bg-gray-100 md:grid-cols-2">
-                <MetadataRow label="Manufacturer" value={equipment.manufacturer} />
-                <MetadataRow label="Make" value={equipment.make} />
-                <MetadataRow label="Model" value={equipment.model} />
-                <MetadataRow label="Serial Number" value={equipment.serial_number} />
-                <MetadataRow label="Plant" value={equipment.plants?.name} />
-                <MetadataRow label="Department" value={equipment.departments?.name} />
-                <MetadataRow label="Section" value={equipment.sections?.name} />
-                <MetadataRow label="Area" value={equipment.sections?.name} />
-                <MetadataRow label="Location" value={equipment.locations?.name} />
-                <MetadataRow label="Cost Center" value={equipment.cost_centers?.name} />
+          <ERPDetailSection title="Overview" icon={Cog}>
+            <div className="grid grid-cols-1 gap-px bg-gray-100 md:grid-cols-2">
+              <MetadataRow label="Manufacturer" value={equipment.manufacturer} />
+              <MetadataRow label="Make" value={equipment.make} />
+              <MetadataRow label="Model" value={equipment.model} />
+              <MetadataRow label="Serial Number" value={equipment.serial_number} />
+              <MetadataRow label="Plant" value={equipment.plants?.name} />
+              <MetadataRow label="Department" value={equipment.departments?.name} />
+              <MetadataRow label="Section" value={equipment.sections?.name} />
+              <MetadataRow label="Area" value={equipment.sections?.name} />
+              <MetadataRow label="Location" value={equipment.locations?.name} />
+              <MetadataRow label="Cost Center" value={equipment.cost_centers?.name} />
+            </div>
+            {equipment.description && (
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <p className="text-sm text-gray-600">{equipment.description}</p>
               </div>
-              {equipment.description && (
-                <div className="border-t border-gray-200 px-6 py-4">
-                  <p className="text-sm text-gray-600">{equipment.description}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </ERPDetailSection>
         )}
 
         {activeTab === "components" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-900">Components</h3>
-              <Button size="sm" onClick={openAddDialog}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Component
-              </Button>
+              <ERPQuickAdd
+                open={isDialogOpen}
+                onOpenChange={(o) => {
+                  if (o) openAddDialog();
+                  else setIsDialogOpen(false);
+                }}
+                title="Add Component"
+                description="Register a line-replaceable unit or spare component."
+                addLabel="Add Component"
+                icon={Plus}
+                isSaving={isSavingComponent}
+                error={componentError}
+                onAdd={() => {
+                  void addNewComponent();
+                }}
+              >
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void addNewComponent();
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <Label htmlFor="component_name">Component Name *</Label>
+                    <Input
+                      id="component_name"
+                      value={componentForm.component_name}
+                      onChange={(e) =>
+                        setComponentForm({ ...componentForm, component_name: e.target.value })
+                      }
+                      placeholder="e.g. Impeller"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="component_type">Type</Label>
+                    <Input
+                      id="component_type"
+                      value={componentForm.component_type}
+                      onChange={(e) =>
+                        setComponentForm({ ...componentForm, component_type: e.target.value })
+                      }
+                      placeholder="e.g. wearing part"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="serial_number">Serial Number</Label>
+                    <Input
+                      id="serial_number"
+                      value={componentForm.serial_number}
+                      onChange={(e) =>
+                        setComponentForm({ ...componentForm, serial_number: e.target.value })
+                      }
+                      placeholder="e.g. SN-2024-0081"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="criticality">Criticality</Label>
+                    <Select
+                      id="criticality"
+                      value={componentForm.criticality}
+                      onChange={(e) =>
+                        setComponentForm({ ...componentForm, criticality: e.target.value })
+                      }
+                    >
+                      <option value="critical">Critical</option>
+                      <option value="major">Major</option>
+                      <option value="normal">Normal</option>
+                    </Select>
+                  </div>
+                </form>
+              </ERPQuickAdd>
             </div>
             {components.length === 0 ? (
               <EmptyState
@@ -316,39 +388,60 @@ export default function EquipmentDetailPage() {
               />
             ) : (
               <Card>
-                <CardContent className="p-0">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50">
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Name</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Serial</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Criticality</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {components.map((c) => (
-                        <tr key={c.id}>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{c.component_code}</td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{c.component_name}</td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{c.component_type ?? "-"}</td>
-                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{c.serial_number ?? "-"}</td>
-                          <td className="whitespace-nowrap px-6 py-4"><StatusBadge status={c.criticality ?? "normal"} /></td>
-                          <td className="whitespace-nowrap px-6 py-4 text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeComponent(c.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <CardContent className="p-4">
+                  <ERPLineItemTable
+                    data={components}
+                    getKey={(c) => c.id}
+                    columns={[
+                      {
+                        key: "code",
+                        header: "Code",
+                        render: (c) => (
+                          <span className="whitespace-nowrap text-sm font-medium text-gray-900">{c.component_code}</span>
+                        ),
+                      },
+                      {
+                        key: "name",
+                        header: "Name",
+                        render: (c) => (
+                          <span className="whitespace-nowrap text-sm text-gray-600">{c.component_name}</span>
+                        ),
+                      },
+                      {
+                        key: "type",
+                        header: "Type",
+                        render: (c) => (
+                          <span className="whitespace-nowrap text-sm text-gray-600">{c.component_type ?? "-"}</span>
+                        ),
+                      },
+                      {
+                        key: "serial",
+                        header: "Serial",
+                        render: (c) => (
+                          <span className="whitespace-nowrap text-sm text-gray-600">{c.serial_number ?? "-"}</span>
+                        ),
+                      },
+                      {
+                        key: "criticality",
+                        header: "Criticality",
+                        render: (c) => <StatusBadge status={c.criticality ?? "normal"} />,
+                      },
+                      {
+                        key: "actions",
+                        header: "Actions",
+                        className: "text-right",
+                        render: (c) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeComponent(c.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        ),
+                      },
+                    ]}
+                  />
                 </CardContent>
               </Card>
             )}
@@ -468,93 +561,26 @@ export default function EquipmentDetailPage() {
 
         {activeTab === "history" && (
           <Card>
-            <CardContent className="p-0">
-              {history.length === 0 ? (
-                <EmptyState title="No status changes" />
-              ) : (
-                <div className="divide-y divide-gray-200">
-                  {history.map((h) => (
-                    <div key={h.id} className="flex items-center justify-between px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <StatusBadge status={h.old_status ?? "n/a"} />
-                        <span className="text-gray-400">→</span>
-                        <StatusBadge status={h.new_status} />
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-600">{formatDateTime(h.changed_at)}</p>
-                        {h.reason && <p className="text-xs text-gray-400">{h.reason}</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <CardContent className="p-6">
+              <ERPActivityTimeline
+                items={history.map((h) => ({
+                  id: h.id,
+                  title: (
+                    <span className="flex items-center gap-2">
+                      <StatusBadge status={h.old_status ?? "n/a"} />
+                      <span className="text-gray-400">→</span>
+                      <StatusBadge status={h.new_status} />
+                    </span>
+                  ),
+                  timestamp: formatDateTime(h.changed_at),
+                  description: h.reason ?? undefined,
+                }))}
+                emptyTitle="No status changes"
+              />
             </CardContent>
           </Card>
         )}
-      </div>
-
-      <Dialog
-        open={isDialogOpen}
-        onClose={() => setIsDialogOpen(false)}
-        title="Add Component"
-        description="Register a line-replaceable unit or spare component."
-      >
-        <form onSubmit={addNewComponent} className="space-y-4">
-          {componentError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              {componentError}
-            </div>
-          )}
-          <div>
-            <Label htmlFor="component_name">Component Name *</Label>
-            <Input
-              id="component_name"
-              value={componentForm.component_name}
-              onChange={(e) => setComponentForm({ ...componentForm, component_name: e.target.value })}
-              placeholder="e.g. Impeller"
-            />
-          </div>
-          <div>
-            <Label htmlFor="component_type">Type</Label>
-            <Input
-              id="component_type"
-              value={componentForm.component_type}
-              onChange={(e) => setComponentForm({ ...componentForm, component_type: e.target.value })}
-              placeholder="e.g. wearing part"
-            />
-          </div>
-          <div>
-            <Label htmlFor="serial_number">Serial Number</Label>
-            <Input
-              id="serial_number"
-              value={componentForm.serial_number}
-              onChange={(e) => setComponentForm({ ...componentForm, serial_number: e.target.value })}
-              placeholder="e.g. SN-2024-0081"
-            />
-          </div>
-          <div>
-            <Label htmlFor="criticality">Criticality</Label>
-            <Select
-              id="criticality"
-              value={componentForm.criticality}
-              onChange={(e) => setComponentForm({ ...componentForm, criticality: e.target.value })}
-            >
-              <option value="critical">Critical</option>
-              <option value="major">Major</option>
-              <option value="normal">Normal</option>
-            </Select>
-          </div>
-          <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
-            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Component
-            </Button>
-          </div>
-        </form>
-      </Dialog>
+      </ERPDetailLayout>
     </ERPLayout>
   );
 }
