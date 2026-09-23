@@ -2,8 +2,10 @@
 
 ## Scope
 
-Conventions observed in `src/` today, plus the development rules the repo was built under
-(`docs/AI_DEVELOPMENT_RULES.md` in the spec folders + agreed session defaults).
+Conventions observed in `src/` today, plus the development rules the repo was built under. The
+canonical rules live in [`docs/AI_DEVELOPMENT_RULES.md`](AI_DEVELOPMENT_RULES.md) with a
+one-glance summary in [`docs/DEVELOPMENT-RULES.md`](DEVELOPMENT-RULES.md). This file records
+the conventions actually observed in the code plus agreed session defaults.
 
 ## Page conventions
 

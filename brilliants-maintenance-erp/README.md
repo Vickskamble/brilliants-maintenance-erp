@@ -63,6 +63,8 @@ Everything is documented under `docs/`:
 - [UI-COMPONENTS.md](docs/UI-COMPONENTS.md) — component library and form primitives.
 - [CONFIG-ENV.md](docs/CONFIG-ENV.md) — env vars, config files, scripts, middleware.
 - [CONVENTIONS.md](docs/CONVENTIONS.md) — coding conventions and dev rules.
+- [DEVELOPMENT-RULES.md](docs/DEVELOPMENT-RULES.md) — one-glance summary of the 20 AI
+  development rules (canonical: `docs/AI_DEVELOPMENT_RULES.md`).
 - [KNOWN-GAPS.md](docs/KNOWN-GAPS.md) — partial tabs, inconsistencies, and a prioritized TODO.
 - [STATE-OF-REPO.md](docs/STATE-OF-REPO.md) — current module/database status snapshot.
 
