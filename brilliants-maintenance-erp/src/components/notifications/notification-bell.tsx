@@ -55,10 +55,18 @@ export function NotificationBell() {
   const [items, setItems] = useState<AppNotificationRow[]>([]);
   const [loading, setLoading] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+  const lastEngineRefresh = useRef(0);
+  const ENGINE_REFRESH_TTL = 60_000;
 
-  async function refresh() {
-    if (!user) return;
-    await refreshNotifications();
+  async function refreshEngineIfStale() {
+    const now = Date.now();
+    if (now - lastEngineRefresh.current > ENGINE_REFRESH_TTL) {
+      await refreshNotifications();
+      lastEngineRefresh.current = Date.now();
+    }
+  }
+
+  async function loadList() {
     const [count, list] = await Promise.all([
       listUnreadNotificationCount(),
       listAppNotifications({ limit: 10 }),
@@ -68,7 +76,8 @@ export function NotificationBell() {
   }
 
   useEffect(() => {
-    void refresh();
+    if (!user) return;
+    void loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
@@ -83,9 +92,12 @@ export function NotificationBell() {
   }, []);
 
   async function toggleOpen() {
-    setLoading(true);
-    if (!open) await refresh();
-    setLoading(false);
+    if (!open) {
+      setLoading(true);
+      await refreshEngineIfStale();
+      await loadList();
+      setLoading(false);
+    }
     setOpen((v) => !v);
   }
 
