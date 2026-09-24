@@ -15,6 +15,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
+import { ErpKanban } from "@/components/erp/erp-kanban";
 import { createClient } from "@/lib/supabase/client";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
@@ -22,7 +23,7 @@ import {
   WORK_ORDER_STATUSES,
   PRIORITY_LEVELS,
 } from "@/lib/constants";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, LayoutList, KanbanSquare } from "lucide-react";
 
 interface WorkOrderRow {
   id: string;
@@ -59,6 +60,10 @@ export default function WorkOrdersListPage() {
   const [priority, setPriority] = useState("");
   const [status, setStatus] = useState("");
 
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const [kanbanItems, setKanbanItems] = useState<WorkOrderRow[]>([]);
+  const [isKanbanLoading, setIsKanbanLoading] = useState(false);
+
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
@@ -71,8 +76,12 @@ export default function WorkOrdersListPage() {
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, [debouncedSearch, plantId, equipmentId, type, priority, status, page]);
+
+  useEffect(() => {
+    if (view === "kanban") void loadKanban();
+  }, [view, debouncedSearch, plantId, equipmentId, type, priority, status]);
 
   async function load() {
     setIsLoading(true);
@@ -116,6 +125,43 @@ export default function WorkOrdersListPage() {
     setItems((data as unknown as WorkOrderRow[]) ?? []);
     setTotal(count ?? 0);
     setIsLoading(false);
+  }
+
+  async function loadKanban() {
+    setIsKanbanLoading(true);
+    let query = supabase
+      .from("work_orders")
+      .select(
+        `
+        id,
+        work_order_no,
+        plant_id,
+        equipment_id,
+        type,
+        priority,
+        status,
+        title,
+        plants(name),
+        equipment(equipment_code, equipment_name)
+      `
+      )
+      .order("work_order_no")
+      .limit(1000);
+
+    if (plantId) query = query.eq("plant_id", plantId);
+    if (equipmentId) query = query.eq("equipment_id", equipmentId);
+    if (type) query = query.eq("type", type);
+    if (priority) query = query.eq("priority", priority);
+    if (status) query = query.eq("status", status);
+    if (debouncedSearch) {
+      query = query.or(
+        `work_order_no.ilike.%${debouncedSearch}%,title.ilike.%${debouncedSearch}%`
+      );
+    }
+
+    const { data } = await query;
+    setKanbanItems((data as unknown as WorkOrderRow[]) ?? []);
+    setIsKanbanLoading(false);
   }
 
   return (
@@ -183,7 +229,94 @@ export default function WorkOrdersListPage() {
         </CardContent>
       </Card>
 
-      <DataTable
+      <div className="flex justify-end">
+        <div className="inline-flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setView("list")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+              view === "list"
+                ? "bg-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <LayoutList className="h-4 w-4" />
+            List
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("kanban")}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+              view === "kanban"
+                ? "bg-blue-600 text-white"
+                : "text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <KanbanSquare className="h-4 w-4" />
+            Kanban
+          </button>
+        </div>
+      </div>
+
+      {view === "kanban" ? (
+        isKanbanLoading ? (
+          <Card>
+            <CardContent className="p-6">
+              <LoadingPage />
+            </CardContent>
+          </Card>
+        ) : (
+          <ErpKanban
+            lanes={WORK_ORDER_STATUSES.map((s) => ({
+              value: s.value,
+              label: s.label,
+              color: s.color,
+            }))}
+            items={kanbanItems}
+            idKey={(item) => item.id}
+            getGroup={(item) => item.status}
+            onCardClick={(item) => router.push(`/work-orders/${item.id}`)}
+            renderCard={(item) => {
+              const priorityInfo = PRIORITY_LEVELS.find(
+                (p) => p.value === item.priority
+              );
+              const typeInfo = WORK_ORDER_TYPES.find(
+                (t) => t.value === item.type
+              );
+              return (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-semibold text-blue-600">
+                      {item.work_order_no}
+                    </span>
+                    {priorityInfo && (
+                      <Badge className={priorityInfo.color}>
+                        {priorityInfo.label}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="line-clamp-2 text-sm font-medium text-gray-900">
+                    {item.title}
+                  </p>
+                  <div className="flex items-center justify-between gap-2 text-xs text-gray-500">
+                    {typeInfo && (
+                      <Badge className={typeInfo.color}>{typeInfo.label}</Badge>
+                    )}
+                    <span className="truncate">
+                      {item.equipment?.equipment_code ?? "General"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {item.plants?.name ?? "-"}
+                  </div>
+                </div>
+              );
+            }}
+          />
+        )
+      ) : (
+        <>
+          <DataTable
         columns={[
           {
             key: "work_order_no",
@@ -258,6 +391,8 @@ export default function WorkOrdersListPage() {
         totalItems={total}
         onPageChange={setPage}
       />
+        </>
+      )}
     </ERPLayout>
   );
 }
