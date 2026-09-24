@@ -55,7 +55,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Settings: Settings,
 };
 
-export function Sidebar() {
+export function Sidebar({
+  mobileOpen,
+  onClose,
+}: {
+  mobileOpen?: boolean;
+  onClose?: () => void;
+}) {
   const pathname = usePathname();
   const { permissions, hasPermission } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
@@ -65,12 +71,20 @@ export function Sidebar() {
   );
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col border-r border-gray-200 bg-white transition-all duration-300",
-        collapsed ? "w-16" : "w-64"
+    <>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={onClose}
+        />
       )}
-    >
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex transform flex-col border-r border-gray-200 bg-white transition-all duration-300 lg:static lg:translate-x-0",
+          collapsed ? "w-16" : "w-64",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
       <div className="flex h-16 items-center justify-between border-b border-gray-200 px-4">
         {!collapsed && (
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -122,6 +136,7 @@ export function Sidebar() {
           })}
         </ul>
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }

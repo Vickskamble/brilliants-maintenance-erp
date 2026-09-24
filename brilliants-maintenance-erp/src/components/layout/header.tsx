@@ -6,13 +6,14 @@ import {
   ChevronDown,
   LogOut,
   MapPin,
+  Menu,
   User,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GlobalSearch } from "@/components/search/global-search";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
-export function Header() {
+export function Header({ onToggleNav }: { onToggleNav?: () => void }) {
   const { profile, organization, plant, plants, setSelectedPlant, signOut } =
     useAuth();
   const [showPlantDropdown, setShowPlantDropdown] = useState(false);
@@ -43,6 +44,13 @@ export function Header() {
   return (
     <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
       <div className="flex items-center gap-4">
+        <button
+          onClick={onToggleNav}
+          className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 lg:hidden"
+          aria-label="Toggle navigation"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
         {organization && (
           <div className="text-sm text-gray-600">
             <span className="font-medium text-gray-900">
@@ -52,7 +60,11 @@ export function Header() {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        <div className="hidden md:block">
+          <GlobalSearch />
+        </div>
+
         {plants.length > 1 && (
           <div className="relative" ref={plantRef}>
             <button
@@ -89,13 +101,11 @@ export function Header() {
         )}
 
         {plants.length === 1 && plant && (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="items-center gap-2 text-sm text-gray-600 hidden md:flex">
             <MapPin className="h-4 w-4 text-gray-400" />
             <span>{plant.name}</span>
           </div>
         )}
-
-        <GlobalSearch />
 
         <NotificationBell />
 
