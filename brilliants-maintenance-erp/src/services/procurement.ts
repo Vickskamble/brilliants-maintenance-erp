@@ -83,6 +83,26 @@ function castRows<T>(data: unknown): T[] {
   return (data ?? []) as unknown as T[];
 }
 
+interface PartInfo {
+  id: string;
+  part_code: string;
+  part_name: string;
+  unit: string;
+}
+
+async function loadPartMap(ids: string[]): Promise<Map<string, PartInfo>> {
+  const supabase = createClient();
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return new Map();
+  const { data } = await supabase
+    .from("spare_parts")
+    .select("id, part_code, part_name, unit")
+    .in("id", unique);
+  const map = new Map<string, PartInfo>();
+  for (const p of castRows<PartInfo>(data)) map.set(p.id, p);
+  return map;
+}
+
 function pad(n: number, width = 4): string {
   return String(n).padStart(width, "0");
 }
@@ -103,13 +123,22 @@ export async function listMaterialRequests(
   scope: QueryScope
 ): Promise<{ data: MaterialRequestWithItems[]; error: string | null }> {
   const supabase = createClient();
-  const select =
-    "*, material_request_items(*, spare_parts(part_code, part_name, unit))";
+  const select = "*, material_request_items(*)";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = supabase.from("material_requests").select(select as any).order("request_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
   const { data, error } = await query;
-  return { data: castRows<MaterialRequestWithItems>(data), error: error?.message ?? null };
+  if (error) return { data: [], error: error?.message ?? null };
+  const rows = castRows<MaterialRequestWithItems>(data);
+  const ids = rows.flatMap((row) => row.material_request_items.map((i) => i.spare_part_id));
+  const partMap = await loadPartMap(ids);
+  for (const row of rows) {
+    row.material_request_items = row.material_request_items.map((item) => ({
+      ...item,
+      spare_parts: partMap.get(item.spare_part_id) ?? null,
+    }));
+  }
+  return { data: rows, error: null };
 }
 
 export async function createMaterialRequest(
@@ -188,12 +217,22 @@ export async function listPurchaseOrders(
 ): Promise<{ data: PurchaseOrderWithItems[]; error: string | null }> {
   const supabase = createClient();
   const select =
-    "*, vendors(id, name), material_requests(request_no), purchase_order_items(*, spare_parts(part_code, part_name, unit))";
+    "*, vendors(id, name), material_requests(request_no), purchase_order_items(*)";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = supabase.from("purchase_orders").select(select as any).order("po_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
   const { data, error } = await query;
-  return { data: castRows<PurchaseOrderWithItems>(data), error: error?.message ?? null };
+  if (error) return { data: [], error: error?.message ?? null };
+  const rows = castRows<PurchaseOrderWithItems>(data);
+  const ids = rows.flatMap((row) => row.purchase_order_items.map((i) => i.spare_part_id));
+  const partMap = await loadPartMap(ids);
+  for (const row of rows) {
+    row.purchase_order_items = row.purchase_order_items.map((item) => ({
+      ...item,
+      spare_parts: partMap.get(item.spare_part_id) ?? null,
+    }));
+  }
+  return { data: rows, error: null };
 }
 
 export async function createPurchaseOrder(
@@ -505,7 +544,7 @@ export async function getReceiveablePurchaseOrders(
 ): Promise<{ data: PurchaseOrderWithItems[]; error: string | null }> {
   const supabase = createClient();
   const select =
-    "*, vendors(id, name), material_requests(request_no), purchase_order_items(*, spare_parts(part_code, part_name, unit))";
+    "*, vendors(id, name), material_requests(request_no), purchase_order_items(*)";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = supabase
     .from("purchase_orders")
@@ -514,5 +553,15 @@ export async function getReceiveablePurchaseOrders(
     .order("po_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
   const { data, error } = await query;
-  return { data: castRows<PurchaseOrderWithItems>(data), error: error?.message ?? null };
+  if (error) return { data: [], error: error?.message ?? null };
+  const rows = castRows<PurchaseOrderWithItems>(data);
+  const ids = rows.flatMap((row) => row.purchase_order_items.map((i) => i.spare_part_id));
+  const partMap = await loadPartMap(ids);
+  for (const row of rows) {
+    row.purchase_order_items = row.purchase_order_items.map((item) => ({
+      ...item,
+      spare_parts: partMap.get(item.spare_part_id) ?? null,
+    }));
+  }
+  return { data: rows, error: null };
 }

@@ -120,7 +120,7 @@ export default function PurchaseOrdersPage() {
     ).createClient();
     const { data } = await supabase
       .from("material_requests")
-      .select("id, title, material_request_items(spare_part_id, quantity_approved, quantity_requested, spare_parts(part_code, part_name, unit))")
+      .select("id, title, material_request_items(spare_part_id, quantity_approved, quantity_requested)")
       .eq("id", mrId)
       .single();
     if (!data) return;
@@ -128,7 +128,6 @@ export default function PurchaseOrdersPage() {
       spare_part_id: string;
       quantity_approved: number | null;
       quantity_requested: number;
-      spare_parts: { part_code: string; part_name: string; unit: string } | null;
     }[]) ?? [];
     setForm((f) => ({
       ...f,
