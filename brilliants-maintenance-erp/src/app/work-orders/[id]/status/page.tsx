@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { changeWorkOrderStatus } from "@/services/work-orders";
+import { getAllowedTransitions } from "@/services/workflow";
 import { WORK_ORDER_STATUSES } from "@/lib/constants";
 import { WorkOrder } from "@/types/database";
 import { ChevronLeft, Save } from "lucide-react";
@@ -29,6 +31,9 @@ export default function ChangeWorkOrderStatusPage() {
   const [remarks, setRemarks] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [allowedTransitions, setAllowedTransitions] = useState<string[] | null>(
+    null
+  );
 
   useEffect(() => {
     void load();
@@ -39,6 +44,12 @@ export default function ChangeWorkOrderStatusPage() {
     if (data) {
       setWorkOrder(data);
       setStatus(data.status);
+      const transitions = await getAllowedTransitions("work_order", data.status);
+      setAllowedTransitions(
+        transitions.filter((nextStatus) => nextStatus !== data.status).length
+          ? transitions
+          : null
+      );
     }
     setIsLoading(false);
   }
@@ -91,8 +102,22 @@ export default function ChangeWorkOrderStatusPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <Label htmlFor="status">Status</Label>
+              {allowedTransitions && allowedTransitions.length > 0 && (
+                <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                  Workflow restricts transitions to:
+                  {allowedTransitions.map((nextStatus) => (
+                    <Badge key={nextStatus} variant="info">
+                      {nextStatus}
+                    </Badge>
+                  ))}
+                </p>
+              )}
               <Select id="status" value={status} onChange={(e) => setStatus(e.target.value)}>
-                {WORK_ORDER_STATUSES.map((s) => (
+                {WORK_ORDER_STATUSES.filter((s) =>
+                  !allowedTransitions || allowedTransitions.length === 0
+                    ? true
+                    : s.value === status || allowedTransitions.includes(s.value)
+                ).map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
