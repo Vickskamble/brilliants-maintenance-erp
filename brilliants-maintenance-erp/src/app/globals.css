@@ -17,3 +17,33 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media print {
+  body {
+    background: #ffffff;
+    height: auto;
+    overflow: visible;
+  }
+  .erp-shell {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .erp-shell aside,
+  .erp-shell > header,
+  header {
+    display: none !important;
+  }
+  .erp-shell main {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}

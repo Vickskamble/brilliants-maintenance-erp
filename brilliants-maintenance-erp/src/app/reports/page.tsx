@@ -137,8 +137,9 @@ export default function ReportsPage() {
         <PageHeader
           title="Reports & Analytics"
           description="MTBF, MTTR, downtime, PM and SLA compliance, procurement spend and failure Pareto."
+          className="no-print"
           action={
-            <div className="flex items-center gap-2">
+            <div className="no-print flex items-center gap-2">
               <Select
                 value={range}
                 onChange={(e) => setRange(e.target.value as ReportRange)}
@@ -161,6 +162,16 @@ export default function ReportsPage() {
             </div>
           }
         />
+
+        <div className="print-only hidden">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Reports & Analytics
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Generated {new Date().toLocaleString()} ·{" "}
+            {REPORT_RANGE_OPTIONS.find((o) => o.value === range)?.label}
+          </p>
+        </div>
 
         {loadError && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">

@@ -34,7 +34,7 @@ export function ERPLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="erp-shell flex h-screen overflow-hidden bg-gray-50">
       <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onToggleNav={() => setNavOpen((v) => !v)} />
