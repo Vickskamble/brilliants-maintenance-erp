@@ -4,7 +4,7 @@ import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { Database, Timer, Users, Shield, Building2, Key, Workflow, Activity } from "lucide-react";
+import { Database, Timer, Users, Shield, Building2, Key, Workflow, Activity, FileUp } from "lucide-react";
 
 const settingsModules = [
   {
@@ -70,6 +70,14 @@ const settingsModules = [
     icon: Activity,
     color: "text-slate-600",
     bg: "bg-slate-100",
+  },
+  {
+    title: "CSV Import",
+    description: "Bulk import master data and spare parts",
+    href: "/settings/import",
+    icon: FileUp,
+    color: "text-teal-600",
+    bg: "bg-teal-50",
   },
 ];
 
