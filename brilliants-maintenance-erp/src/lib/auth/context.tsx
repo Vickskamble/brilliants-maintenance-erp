@@ -135,7 +135,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           email: session.user.email || "",
         });
         await loadUserData(session.user.id);
-        router.push("/dashboard");
       } else if (event === "SIGNED_OUT") {
         setUser(null);
         setProfile(null);
@@ -162,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message };
       }
 
+      router.push("/dashboard");
       return {};
     } catch {
       return { error: "An unexpected error occurred" };
