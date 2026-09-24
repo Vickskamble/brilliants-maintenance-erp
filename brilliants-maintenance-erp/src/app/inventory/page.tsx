@@ -18,6 +18,10 @@ import {
   ArrowUpFromLine,
   ArrowLeftRight,
   ClipboardX,
+  ClipboardList,
+  ShoppingCart,
+  PackageCheck,
+  Star,
 } from "lucide-react";
 
 interface SparePartStockItem {
@@ -164,6 +168,77 @@ export default function InventoryPage() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Link href="/inventory/requests">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50">
+                      <ClipboardList className="h-4 w-4 text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Material Requests
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Raise and approve requests
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/inventory/orders">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50">
+                      <ShoppingCart className="h-4 w-4 text-cyan-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Purchase Orders
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Order from vendors
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/inventory/grn">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-50">
+                      <PackageCheck className="h-4 w-4 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Goods Receipts
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Receive stock into inventory
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/inventory/vendor-evaluation">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50">
+                      <Star className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Vendor Evaluation
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Rate vendor performance
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
