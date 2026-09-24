@@ -17,6 +17,7 @@ import {
   CalendarX,
   BarChart3,
   Settings,
+  GitBranch,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { useState } from "react";
 const SIDEBAR_ITEMS = [
   { label: "Dashboard", href: "/dashboard", module: "dashboard", action: "view" },
   { label: "Equipment", href: "/equipment", module: "equipment", action: "view" },
+  { label: "Assets", href: "/assets", module: "equipment", action: "view" },
   { label: "Maintenance", href: "/maintenance", module: "maintenance", action: "view" },
   { label: "Work Orders", href: "/work-orders", module: "work_order", action: "view" },
   { label: "Breakdowns", href: "/breakdowns", module: "breakdown", action: "view" },
@@ -40,6 +42,7 @@ const SIDEBAR_ITEMS = [
 const ICON_MAP: Record<string, React.ElementType> = {
   Dashboard: LayoutDashboard,
   Equipment: Cog,
+  Assets: GitBranch,
   Maintenance: Wrench,
   "Work Orders": ClipboardList,
   Breakdowns: AlertTriangle,
