@@ -12,8 +12,9 @@ import { DataTable } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
+import { ErpGantt } from "@/components/erp/erp-gantt";
 import { createClient } from "@/lib/supabase/client";
-import { Plus, CalendarX } from "lucide-react";
+import { Plus, CalendarX, LayoutList, GanttChartSquare } from "lucide-react";
 
 interface ShutdownRow {
   id: string;
@@ -37,9 +38,49 @@ export default function ShutdownsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
+  const [view, setView] = useState<"list" | "gantt">("list");
+  const [ganttRows, setGanttRows] = useState<
+    { id: string; label: string; subtitle: string; start: string | null; end: string | null; status: string }[]
+  >([]);
+  const [isGanttLoading, setIsGanttLoading] = useState(false);
+
   useEffect(() => {
     void load();
   }, [page]);
+
+  useEffect(() => {
+    if (view === "gantt") void loadGantt();
+  }, [view]);
+
+  async function loadGantt() {
+    setIsGanttLoading(true);
+    const { data } = await supabase
+      .from("work_orders")
+      .select("id, work_order_no, title, status, planned_start, planned_end, plants(name)")
+      .eq("type", "shutdown")
+      .order("planned_start", { ascending: true })
+      .limit(1000);
+
+    setGanttRows(
+      ((data as unknown as ShutdownRow[]) ?? []).map((row) => ({
+        id: row.id,
+        label: row.work_order_no,
+        subtitle: `${row.title} · ${row.plants?.[0]?.name ?? "-"}`,
+        start: row.planned_start,
+        end: row.planned_end,
+        status: row.status,
+      }))
+    );
+    setIsGanttLoading(false);
+  }
+
+  function barColor(status: string): string {
+    if (["completed", "verified", "closed"].includes(status)) return "#22c55e";
+    if (status === "in_progress") return "#f59e0b";
+    if (status === "cancelled") return "#9ca3af";
+    if (status === "on_hold") return "#fb923c";
+    return "#3b82f6";
+  }
 
   async function load() {
     setIsLoading(true);
@@ -80,7 +121,54 @@ export default function ShutdownsPage() {
 
         <Card>
           <CardContent className="p-0">
-            {isLoading ? (
+            <div className="flex justify-end border-b border-gray-200 p-3">
+              <div className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setView("list")}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    view === "list"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <LayoutList className="h-4 w-4" />
+                  List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("gantt")}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    view === "gantt"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <GanttChartSquare className="h-4 w-4" />
+                  Gantt
+                </button>
+              </div>
+            </div>
+
+            {view === "gantt" ? (
+              isGanttLoading ? (
+                <LoadingPage />
+              ) : (
+                <div className="p-3">
+                  <ErpGantt
+                    rows={ganttRows.map((row) => ({
+                      id: row.id,
+                      label: row.label,
+                      subtitle: row.subtitle,
+                      start: row.start,
+                      end: row.end,
+                      color: barColor(row.status),
+                      onClick: () => router.push(`/work-orders/${row.id}`),
+                    }))}
+                  />
+                </div>
+              )
+            ) : isLoading ? (
               <LoadingPage />
             ) : items.length === 0 ? (
               <EmptyState
