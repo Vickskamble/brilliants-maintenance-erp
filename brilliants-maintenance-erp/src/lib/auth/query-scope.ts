@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useAuth } from "./context";
 
 export interface QueryScope {
@@ -35,5 +36,8 @@ export function queryScopeFilters(scope: QueryScope): Record<string, string> {
 
 export function useQueryScope(): QueryScope {
   const { organization, plant } = useAuth();
-  return buildQueryScope(organization, plant);
+  return useMemo(
+    () => buildQueryScope(organization, plant),
+    [organization?.id ?? null, plant?.id ?? null]
+  );
 }
