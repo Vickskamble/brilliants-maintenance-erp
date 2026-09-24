@@ -46,4 +46,8 @@ body {
   .print-only {
     display: block !important;
   }
+  .recharts-wrapper,
+  .recharts-responsive-container {
+    break-inside: avoid;
+  }
 }
