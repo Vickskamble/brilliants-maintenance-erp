@@ -14,9 +14,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
+import { ErpCalendar } from "@/components/erp/erp-calendar";
 import { createClient } from "@/lib/supabase/client";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { Plus, Search, Wrench } from "lucide-react";
+import { Plus, Search, Wrench, LayoutList, CalendarDays } from "lucide-react";
 
 interface MaintenanceScheduleRowItem {
   id: string;
@@ -47,6 +48,12 @@ export default function MaintenanceSchemesPage() {
   const debouncedSearch = useDebouncedValue(search, 350);
   const [status, setStatus] = useState("");
 
+  const [view, setView] = useState<"list" | "calendar">("list");
+  const [calendarEvents, setCalendarEvents] = useState<
+    { id: string; title: string; startDate: string; active: boolean }[]
+  >([]);
+  const [isCalendarLoading, setIsCalendarLoading] = useState(false);
+
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, status]);
@@ -54,6 +61,10 @@ export default function MaintenanceSchemesPage() {
   useEffect(() => {
     void load();
   }, [page, debouncedSearch, status]);
+
+  useEffect(() => {
+    if (view === "calendar") void loadCalendar();
+  }, [view, debouncedSearch, status]);
 
   async function load() {
     setIsLoading(true);
@@ -99,6 +110,55 @@ export default function MaintenanceSchemesPage() {
     setIsLoading(false);
   }
 
+  async function loadCalendar() {
+    setIsCalendarLoading(true);
+    let query = supabase
+      .from("maintenance_schedules")
+      .select(
+        `
+        id,
+        task_type,
+        next_run_at,
+        is_active,
+        equipment(equipment_code)
+      `
+      )
+      .not("next_run_at", "is", null)
+      .order("next_run_at", { ascending: true })
+      .limit(1000);
+
+    if (status) {
+      query =
+        status === "active"
+          ? query.eq("is_active", true)
+          : query.eq("is_active", false);
+    }
+    if (debouncedSearch) {
+      query = query.or(
+        `task_type.ilike.%${debouncedSearch}%,equipment.equipment_code.ilike.%${debouncedSearch}%`
+      );
+    }
+
+    const { data: rows } = await query;
+    setCalendarEvents(
+      ((rows as unknown as {
+        id: string;
+        task_type: string | null;
+        next_run_at: string;
+        is_active: boolean | null;
+        equipment: { equipment_code: string }[] | null;
+      }[]) ?? []).map((row) => ({
+        id: row.id,
+        title: `${row.task_type?.replace(/_/g, " ") ?? "PM"} · ${
+          row.equipment?.[0]?.equipment_code ?? "General"
+        }`,
+        startDate: row.next_run_at,
+        active: row.is_active ?? true,
+      }))
+    );
+    setIsCalendarLoading(false);
+  }
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -139,7 +199,54 @@ export default function MaintenanceSchemesPage() {
               />
             </div>
 
-            {isLoading ? (
+            <div className="flex justify-end border-b border-gray-200 p-3">
+              <div className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setView("list")}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    view === "list"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <LayoutList className="h-4 w-4" />
+                  List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setView("calendar")}
+                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium ${
+                    view === "calendar"
+                      ? "bg-blue-600 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Calendar
+                </button>
+              </div>
+            </div>
+
+            {view === "calendar" ? (
+              isCalendarLoading ? (
+                <LoadingPage />
+              ) : (
+                <div className="p-3">
+                  <ErpCalendar
+                    events={calendarEvents.map((event) => ({
+                      id: event.id,
+                      title: event.title,
+                      startDate: event.startDate,
+                      color: event.active
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-gray-200 text-gray-500 hover:bg-gray-300",
+                      onClick: () => router.push(`/maintenance/${event.id}`),
+                    }))}
+                  />
+                </div>
+              )
+            ) : isLoading ? (
               <LoadingPage />
             ) : items.length === 0 ? (
               <EmptyState
