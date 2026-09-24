@@ -3,7 +3,6 @@
 import { useAuth } from "@/lib/auth/context";
 import { cn, getInitials } from "@/lib/utils";
 import {
-  Bell,
   ChevronDown,
   LogOut,
   MapPin,
@@ -11,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { GlobalSearch } from "@/components/search/global-search";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 export function Header() {
   const { profile, organization, plant, plants, setSelectedPlant, signOut } =
@@ -97,10 +97,7 @@ export function Header() {
 
         <GlobalSearch />
 
-        <button className="relative rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-red-500" />
-        </button>
+        <NotificationBell />
 
         <div className="relative" ref={userRef}>
           <button
