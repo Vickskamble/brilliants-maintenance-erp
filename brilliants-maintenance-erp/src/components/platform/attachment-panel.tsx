@@ -14,7 +14,8 @@ import {
   logAuditAction,
   uploadAttachment,
 } from "@/services/platform";
-import { Download, FileText, Loader2, Paperclip, Upload, X } from "lucide-react";
+import { Download, FileText, Paperclip, Upload, X } from "lucide-react";
+import { LoadingSpinner } from "@/components/common/loading";
 
 interface AttachmentPanelProps {
   entityType: string;
@@ -114,7 +115,7 @@ export function AttachmentPanel({
           disabled={isUploading}
         >
           {isUploading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <LoadingSpinner size="sm" className="mr-2" />
           ) : (
             <Upload className="mr-2 h-4 w-4" />
           )}

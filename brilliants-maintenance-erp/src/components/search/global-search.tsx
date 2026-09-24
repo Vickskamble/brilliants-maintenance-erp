@@ -10,7 +10,6 @@ import {
   ClipboardList,
   Factory,
   FileWarning,
-  Loader2,
   Search,
   SearchX,
   Settings,
@@ -18,6 +17,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { LoadingSpinner } from "@/components/common/loading";
 
 const MODULE_CONFIG: Record<
   SearchModule,
@@ -193,7 +193,7 @@ export function GlobalSearch() {
         <div ref={listRef} className="max-h-[60vh] overflow-y-auto py-2">
           {isSearching && (
             <div className="flex items-center gap-2 px-4 py-6 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <LoadingSpinner size="sm" />
               Searching...
             </div>
           )}

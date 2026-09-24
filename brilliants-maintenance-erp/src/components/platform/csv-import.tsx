@@ -14,7 +14,8 @@ import {
 import { useQueryScope } from "@/lib/auth/query-scope";
 import { logAuditAction } from "@/services/platform";
 import { useAuth } from "@/lib/auth/context";
-import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileUp, X } from "lucide-react";
+import { LoadingSpinner } from "@/components/common/loading";
 
 export function CsvImportCard({
   schema,
@@ -111,7 +112,7 @@ export function CsvImportCard({
               disabled={isRunning || pendingRows.length === 0}
             >
               {isRunning ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <LoadingSpinner size="sm" className="mr-2" />
               ) : (
                 <CheckCircle2 className="mr-2 h-4 w-4" />
               )}

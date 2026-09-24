@@ -1,3 +1,4 @@
+import { Cog } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LoadingSpinnerProps {
@@ -6,23 +7,33 @@ interface LoadingSpinnerProps {
 }
 
 const sizes = {
-  sm: "h-4 w-4",
-  md: "h-8 w-8",
-  lg: "h-12 w-12",
+  sm: { main: "h-5 w-5", sub: "h-2.5 w-2.5" },
+  md: { main: "h-10 w-10", sub: "h-4 w-4" },
+  lg: { main: "h-14 w-14", sub: "h-6 w-6" },
 };
 
 export function LoadingSpinner({
   className,
   size = "md",
 }: LoadingSpinnerProps) {
+  const s = sizes[size];
   return (
     <div
-      className={cn(
-        "animate-spin rounded-full border-4 border-blue-600 border-t-transparent",
-        sizes[size],
-        className
-      )}
-    />
+      className={cn("relative inline-flex items-center justify-center", className)}
+      aria-label="Loading"
+    >
+      <Cog
+        className={cn(s.main, "animate-spin text-blue-600")}
+        strokeWidth={1.4}
+      />
+      <Cog
+        className={cn(
+          s.sub,
+          "animate-spin-reverse absolute -right-1 -top-1 text-slate-400"
+        )}
+        strokeWidth={2.5}
+      />
+    </div>
   );
 }
 
