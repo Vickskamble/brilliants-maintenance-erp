@@ -127,6 +127,7 @@ export default function BreakdownDetailPage() {
     <ERPLayout>
       <PageHeader
         title={breakdown.breakdown_no ?? "Breakdown"}
+        backHref="/breakdowns"
         description={`${breakdown.plants?.name ?? "No plant"} · ${
           breakdown.equipment?.equipment_code ?? "No equipment"
         }`}

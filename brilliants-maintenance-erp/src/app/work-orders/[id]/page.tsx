@@ -135,6 +135,7 @@ export default function WorkOrderDetailPage() {
     <ERPLayout>
       <PageHeader
         title={`${workOrder.work_order_no} · ${workOrder.title}`}
+        backHref="/work-orders"
         description={`${typeMeta?.label ?? workOrder.type} · ${priorityMeta?.label ?? workOrder.priority}`}
         action={
           <div className="flex items-center gap-2">

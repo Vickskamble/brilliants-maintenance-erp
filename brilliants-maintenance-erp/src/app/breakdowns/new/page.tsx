@@ -17,6 +17,7 @@ export default function NewBreakdownPage() {
       <PageHeader
         title="Report Breakdown"
         description="Record a new equipment breakdown."
+        backHref="/breakdowns"
         action={
           <Link href="/breakdowns">
             <Button variant="outline">

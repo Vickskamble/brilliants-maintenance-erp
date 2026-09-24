@@ -107,6 +107,7 @@ export default function SparePartDetailPage() {
     <ERPLayout>
       <PageHeader
         title={sparePart.part_name}
+        backHref="/spare-parts"
         description={`${sparePart.part_code} · ${categoryInfo?.label ?? "Uncategorized"}`}
         action={
           <div className="flex items-center gap-2">

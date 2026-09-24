@@ -22,6 +22,7 @@ export default function MasterDataCriticalityPage() {
       table="criticality_profiles"
       title="Criticality"
       description="Manage equipment criticality profiles."
+      backHref="/settings/master-data"
       addTitle="Criticality Profile"
       searchPlaceholder="Search by name..."
       emptyTitle="No criticality profiles"

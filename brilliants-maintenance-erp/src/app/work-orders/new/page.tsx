@@ -108,6 +108,7 @@ export default function NewWorkOrderPage() {
       <PageHeader
         title="New Work Order"
         description="Create a new maintenance work order."
+        backHref="/work-orders"
         action={
           <Link href="/work-orders">
             <Button variant="outline">

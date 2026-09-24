@@ -7,6 +7,7 @@ export default function MasterDataCostCentersPage() {
       table="cost_centers"
       title="Cost Centers"
       description="Manage cost centers for maintenance budgeting."
+      backHref="/settings/master-data"
       addTitle="Cost Center"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No cost centers"

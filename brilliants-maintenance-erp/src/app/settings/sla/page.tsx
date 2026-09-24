@@ -179,6 +179,7 @@ export default function SlaRulesPage() {
           <PageHeader
             title="SLA Rules"
             description="Response, resolution and completion targets per module and priority."
+            backHref="/settings"
             action={
               <PermissionGate module="settings" action="edit" fallback={null}>
                 <Button onClick={openCreate}>

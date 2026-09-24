@@ -90,6 +90,7 @@ export default function EditWorkOrderPage() {
     <ERPLayout>
       <PageHeader
         title="Edit Work Order"
+        backHref={`/work-orders/${id}`}
         description={`${workOrder.work_order_no} · ${workOrder.title}`}
         action={
           <Link href={`/work-orders/${id}`}>

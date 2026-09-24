@@ -248,6 +248,7 @@ export default function EquipmentDetailPage() {
       <ERPDetailLayout>
         <PageHeader
           title={equipment.equipment_name}
+          backHref="/equipment"
           description={`${equipment.equipment_code} · ${equipment.asset_categories?.name ?? "Uncategorised"}`}
           action={
             <div className="flex items-center gap-2">

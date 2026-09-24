@@ -118,6 +118,7 @@ export default function VendorDetailPage() {
     <ERPLayout>
       <PageHeader
         title={vendor.name}
+        backHref="/vendors"
         description={`${vendor.vendor_code} · ${vendor.vendor_type?.replace(/_/g, " ") ?? "—"}`}
         action={
           <div className="flex items-center gap-2">

@@ -91,6 +91,7 @@ export default function PlantsPage() {
         <PageHeader
           title="Plants"
           description="Manage plant locations and assignments"
+          backHref="/settings"
           action={
             <Button onClick={openDialog}>
               <Plus className="mr-2 h-4 w-4" />

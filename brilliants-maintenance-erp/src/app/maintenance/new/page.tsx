@@ -124,8 +124,9 @@ export default function MaintenanceNewPage() {
   return (
     <ERPLayout>
       <PageHeader
-        title="Add Maintenance Schedule"
+title="Add Maintenance Schedule"
         description="Define a recurring preventive maintenance task."
+        backHref="/maintenance"
         action={
           <div className="flex items-center gap-2">
             <Link href="/maintenance">

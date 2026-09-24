@@ -157,6 +157,7 @@ export default function VendorEvaluationPage() {
           <PageHeader
             title="Vendor Evaluation"
             description="Rate vendor performance to guide future procurement decisions."
+            backHref="/inventory"
             action={
               <div className="flex items-center gap-2">
                 <Link href="/inventory">

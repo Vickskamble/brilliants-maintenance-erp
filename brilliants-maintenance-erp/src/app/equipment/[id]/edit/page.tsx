@@ -149,6 +149,7 @@ export default function EditEquipmentPage() {
       <div className="space-y-6">
         <PageHeader
           title="Edit Equipment"
+          backHref={`/equipment/${id}`}
           description={values.equipment_code}
           action={
             <Link href={`/equipment/${id}`}>

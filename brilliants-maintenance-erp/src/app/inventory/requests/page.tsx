@@ -164,6 +164,7 @@ export default function MaterialRequestsPage() {
           <PageHeader
             title="Material Requests"
             description="Raise and approve requests for spare parts procurement."
+            backHref="/inventory"
             action={
               <div className="flex items-center gap-2">
                 <Link href="/inventory">

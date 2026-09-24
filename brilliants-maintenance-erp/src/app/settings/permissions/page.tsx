@@ -49,6 +49,7 @@ export default function PermissionsPage() {
         <PageHeader
           title="Permissions"
           description="View all system permissions"
+          backHref="/settings"
         />
 
         <div className="flex items-center gap-4">

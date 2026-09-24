@@ -106,6 +106,7 @@ export default function NewInspectionPage() {
       <PageHeader
         title="Schedule Inspection"
         description="Create a new equipment inspection record."
+        backHref="/inspections"
         action={
           <Link href="/inspections">
             <Button variant="outline">

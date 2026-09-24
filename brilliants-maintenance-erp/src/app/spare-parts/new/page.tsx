@@ -73,6 +73,7 @@ export default function NewSparePartPage() {
       <PageHeader
         title="Add Spare Part"
         description="Create a new spare part in the inventory"
+        backHref="/spare-parts"
         action={
           <Link href="/spare-parts">
             <Button variant="outline">

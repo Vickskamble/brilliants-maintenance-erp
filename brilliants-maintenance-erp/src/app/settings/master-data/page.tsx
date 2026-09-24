@@ -67,6 +67,7 @@ export default function MasterDataPage() {
           <PageHeader
             title="Master Data"
             description="Manage the shared reference data used across maintenance modules."
+            backHref="/settings"
           />
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

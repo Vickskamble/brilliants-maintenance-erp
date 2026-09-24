@@ -252,6 +252,7 @@ export default function WorkflowsPage() {
           <PageHeader
             title="Workflows"
             description="Define status-transition workflows and approval requirements per module."
+            backHref="/settings"
             action={
               <PermissionGate module="settings" action="edit" fallback={null}>
                 <Button onClick={openCreate}>

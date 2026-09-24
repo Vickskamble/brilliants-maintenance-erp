@@ -199,6 +199,7 @@ export default function PurchaseOrdersPage() {
           <PageHeader
             title="Purchase Orders"
             description="Convert approved material requests into vendor purchase orders."
+            backHref="/inventory"
             action={
               <div className="flex items-center gap-2">
                 <Link href="/inventory">

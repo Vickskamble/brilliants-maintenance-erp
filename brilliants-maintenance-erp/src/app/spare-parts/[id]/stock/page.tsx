@@ -133,6 +133,7 @@ export default function StockMovementPage() {
     <ERPLayout>
       <PageHeader
         title="Record Stock Movement"
+        backHref={`/spare-parts/${sparePart.id}`}
         description={`${sparePart.part_code} · ${sparePart.part_name}`}
         action={
           <Link href={`/spare-parts/${sparePart.id}`}>

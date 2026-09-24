@@ -7,6 +7,7 @@ export default function MasterDataLocationsPage() {
       table="locations"
       title="Locations"
       description="Manage physical locations within areas."
+      backHref="/settings/master-data"
       addTitle="Location"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No locations"

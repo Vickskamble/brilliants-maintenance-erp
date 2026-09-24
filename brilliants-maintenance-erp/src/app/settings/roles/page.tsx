@@ -105,6 +105,7 @@ export default function RolesPage() {
         <PageHeader
           title="Roles"
           description="Manage roles and permission assignments"
+          backHref="/settings"
           action={
             <Button onClick={openDialog}>
               <Plus className="mr-2 h-4 w-4" />

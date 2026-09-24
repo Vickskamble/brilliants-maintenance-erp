@@ -87,6 +87,7 @@ export default function ChangeWorkOrderStatusPage() {
     <ERPLayout>
       <PageHeader
         title="Change Status"
+        backHref={`/work-orders/${workOrder.id}`}
         description={`${workOrder.work_order_no} · ${workOrder.title}`}
         action={
           <Link href={`/work-orders/${workOrder.id}`}>

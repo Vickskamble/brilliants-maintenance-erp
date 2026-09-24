@@ -150,6 +150,7 @@ export default function InspectionDetailPage() {
     <ERPLayout>
       <PageHeader
         title={inspection.inspection_no}
+        backHref="/inspections"
         description={`Inspection · ${inspection.plants?.name ?? "No plant"}`}
         action={
           <div className="flex items-center gap-2">

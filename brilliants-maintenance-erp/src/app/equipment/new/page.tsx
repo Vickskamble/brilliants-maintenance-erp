@@ -141,6 +141,7 @@ export default function NewEquipmentPage() {
         <PageHeader
           title="Add Equipment"
           description="Register a new equipment asset."
+          backHref="/equipment"
           action={
             <Link href="/equipment">
               <Button variant="outline">

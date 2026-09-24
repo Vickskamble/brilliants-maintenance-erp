@@ -7,6 +7,7 @@ export default function MasterDataSectionsPage() {
       table="sections"
       title="Sections"
       description="Manage sections belonging to departments."
+      backHref="/settings/master-data"
       addTitle="Section"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No sections"

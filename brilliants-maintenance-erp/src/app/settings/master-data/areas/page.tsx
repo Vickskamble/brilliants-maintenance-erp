@@ -7,6 +7,7 @@ export default function MasterDataAreasPage() {
       table="areas"
       title="Areas"
       description="Manage areas within sections."
+      backHref="/settings/master-data"
       addTitle="Area"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No areas"

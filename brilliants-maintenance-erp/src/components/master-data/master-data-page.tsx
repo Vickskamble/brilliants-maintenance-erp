@@ -57,6 +57,7 @@ export interface MasterDataPageProps {
   parentNameKey?: string;
   statusColumn?: boolean;
   tableKey: string;
+  backHref?: string;
 }
 
 const STATUS_COLORS: Record<string, "success" | "default" | "warning" | "danger" | "info"> = {
@@ -81,6 +82,7 @@ export function MasterDataPage(props: MasterDataPageProps) {
     parentNameKey,
     statusColumn = true,
     tableKey,
+    backHref,
   } = props;
 
   const scope = useQueryScope();
@@ -262,6 +264,7 @@ export function MasterDataPage(props: MasterDataPageProps) {
           <PageHeader
             title={title}
             description={description}
+            backHref={backHref}
             action={
               <PermissionGate module={module} action="create" fallback={null}>
                 <Button onClick={openCreate}>

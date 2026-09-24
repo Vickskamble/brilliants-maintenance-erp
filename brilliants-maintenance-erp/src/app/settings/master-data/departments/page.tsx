@@ -7,6 +7,7 @@ export default function MasterDataDepartmentsPage() {
       table="departments"
       title="Departments"
       description="Manage maintenance and production departments."
+      backHref="/settings/master-data"
       addTitle="Department"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No departments"

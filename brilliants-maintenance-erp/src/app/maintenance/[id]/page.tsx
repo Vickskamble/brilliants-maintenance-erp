@@ -125,6 +125,7 @@ export default function MaintenanceDetailPage() {
     <ERPLayout>
       <PageHeader
         title={schedule.schedule_no ?? "Maintenance Schedule"}
+        backHref="/maintenance"
         description={`${schedule.equipment?.equipment_code ?? "No equipment"} · ${
           schedule.task_type ?? "task"
         }`}

@@ -50,6 +50,7 @@ export default function UsersPage() {
         <PageHeader
           title="Users"
           description="Manage user accounts and profiles"
+          backHref="/settings"
           action={
             <Button onClick={() => setIsDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />

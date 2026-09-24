@@ -7,6 +7,7 @@ export default function MasterDataAssetCategoriesPage() {
       table="asset_categories"
       title="Asset Categories"
       description="Manage equipment asset categories."
+      backHref="/settings/master-data"
       addTitle="Category"
       searchPlaceholder="Search by code or name..."
       emptyTitle="No asset categories"

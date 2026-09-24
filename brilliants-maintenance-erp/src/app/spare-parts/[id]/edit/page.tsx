@@ -121,6 +121,7 @@ export default function EditSparePartPage() {
     <ERPLayout>
       <PageHeader
         title="Edit Spare Part"
+        backHref={`/spare-parts/${sparePart.id}`}
         description={`${sparePart.part_code} · ${sparePart.part_name}`}
         action={
           <Link href={`/spare-parts/${sparePart.id}`}>

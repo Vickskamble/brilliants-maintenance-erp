@@ -129,6 +129,7 @@ function GrnPageContent() {
       <PageHeader
         title="Goods Receipt Notes"
         description="Receive spare parts against purchase orders into inventory."
+        backHref="/inventory"
         action={
           <Link href="/inventory/orders">
             <Button variant="outline">

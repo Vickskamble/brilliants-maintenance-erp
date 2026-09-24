@@ -80,6 +80,7 @@ export default function NewVendorPage() {
       <PageHeader
         title="Add Vendor"
         description="Register a new supplier or service provider."
+        backHref="/vendors"
         action={
           <Link href="/vendors">
             <Button variant="outline">
