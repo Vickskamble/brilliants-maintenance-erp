@@ -4,7 +4,7 @@ import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { Users, Shield, Building2, Key } from "lucide-react";
+import { Database, Timer, Users, Shield, Building2, Key, Workflow } from "lucide-react";
 
 const settingsModules = [
   {
@@ -38,6 +38,30 @@ const settingsModules = [
     icon: Key,
     color: "text-orange-600",
     bg: "bg-orange-50",
+  },
+  {
+    title: "Master Data",
+    description: "Departments, sections, areas, locations, categories",
+    href: "/settings/master-data",
+    icon: Database,
+    color: "text-cyan-600",
+    bg: "bg-cyan-50",
+  },
+  {
+    title: "Workflows",
+    description: "Status-transition flows and approvals per module",
+    href: "/settings/workflows",
+    icon: Workflow,
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+  },
+  {
+    title: "SLA Rules",
+    description: "Response and resolution targets per module",
+    href: "/settings/sla",
+    icon: Timer,
+    color: "text-rose-600",
+    bg: "bg-rose-50",
   },
 ];
 
