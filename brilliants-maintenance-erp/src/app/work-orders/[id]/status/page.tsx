@@ -16,6 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import { changeWorkOrderStatus } from "@/services/work-orders";
 import { getAllowedTransitions } from "@/services/workflow";
+import { logAuditAction } from "@/services/platform";
+import { useQueryScope } from "@/lib/auth/query-scope";
+import { useAuth } from "@/lib/auth/context";
 import { WORK_ORDER_STATUSES } from "@/lib/constants";
 import { WorkOrder } from "@/types/database";
 import { ChevronLeft, Save } from "lucide-react";
@@ -25,6 +28,8 @@ export default function ChangeWorkOrderStatusPage() {
   const id = typeof params.id === "string" ? params.id : "";
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
+  const { user, profile } = useAuth();
 
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
   const [status, setStatus] = useState("");
@@ -63,6 +68,18 @@ export default function ChangeWorkOrderStatusPage() {
       window.alert(error.message);
       return;
     }
+    void logAuditAction(
+      scope,
+      {
+        action: "work_order.status",
+        entityType: "work_order",
+        entityId: id,
+        entityTitle: workOrder?.work_order_no ?? undefined,
+        summary: `Status changed to ${status}${remarks.trim() ? ` — ${remarks.trim()}` : ""}`,
+        metadata: { new_status: status, remarks: remarks.trim() || null },
+      },
+      { id: user?.id, name: profile?.name }
+    );
     router.push(`/work-orders/${id}`);
     router.refresh();
   }

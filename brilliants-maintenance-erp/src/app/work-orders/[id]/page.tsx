@@ -20,6 +20,7 @@ import {
   getWorkOrderActivities,
   getWorkOrderStatusHistory,
 } from "@/services/work-orders";
+import { AttachmentPanel } from "@/components/platform/attachment-panel";
 import { WorkOrder } from "@/types/database";
 import { WORK_ORDER_TYPES, WORK_ORDER_STATUSES, PRIORITY_LEVELS } from "@/lib/constants";
 import { ArrowRight } from "lucide-react";
@@ -74,6 +75,7 @@ export default function WorkOrderDetailPage() {
     { key: "activities", label: "Activities" },
     { key: "spares", label: "Spares" },
     { key: "history", label: "History" },
+    { key: "files", label: "Attachments" },
   ];
 
   async function load() {
@@ -306,6 +308,14 @@ export default function WorkOrderDetailPage() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {activeTab === "files" && (
+        <AttachmentPanel
+          entityType="work_order"
+          entityId={workOrder.id}
+          entityTitle={workOrder.title}
+        />
       )}
     </ERPLayout>
   );

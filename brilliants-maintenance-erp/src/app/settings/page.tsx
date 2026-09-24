@@ -4,7 +4,7 @@ import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { Database, Timer, Users, Shield, Building2, Key, Workflow } from "lucide-react";
+import { Database, Timer, Users, Shield, Building2, Key, Workflow, Activity } from "lucide-react";
 
 const settingsModules = [
   {
@@ -62,6 +62,14 @@ const settingsModules = [
     icon: Timer,
     color: "text-rose-600",
     bg: "bg-rose-50",
+  },
+  {
+    title: "Audit Logs",
+    description: "Central activity trail across modules",
+    href: "/settings/audit-logs",
+    icon: Activity,
+    color: "text-slate-600",
+    bg: "bg-slate-100",
   },
 ];
 

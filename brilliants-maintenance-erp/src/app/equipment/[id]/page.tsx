@@ -19,6 +19,7 @@ import { ERPLineItemTable } from "@/components/erp/erp-line-item-table";
 import { ERPActivityTimeline } from "@/components/erp/erp-activity-timeline";
 import { createClient } from "@/lib/supabase/client";
 import { MetadataRow } from "@/components/common/metadata-row";
+import { AttachmentPanel } from "@/components/platform/attachment-panel";
 import {
   getEquipment,
   getEquipmentComponents,
@@ -582,6 +583,14 @@ export default function EquipmentDetailPage() {
           </Card>
         )}
       </ERPDetailLayout>
+
+      <div className="mt-6">
+        <AttachmentPanel
+          entityType="equipment"
+          entityId={equipment.id}
+          entityTitle={equipment.equipment_name}
+        />
+      </div>
     </ERPLayout>
   );
 }

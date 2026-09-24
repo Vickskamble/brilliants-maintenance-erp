@@ -14,6 +14,7 @@ import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
 import { BREAKDOWN_STATUSES } from "@/lib/constants";
+import { AttachmentPanel } from "@/components/platform/attachment-panel";
 import { ArrowLeft, CheckCircle2, Trash2 } from "lucide-react";
 
 interface BreakdownDetail {
@@ -248,6 +249,14 @@ export default function BreakdownDetailPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="mt-6">
+        <AttachmentPanel
+          entityType="breakdown"
+          entityId={breakdown.id}
+          entityTitle={breakdown.breakdown_no ?? undefined}
+        />
       </div>
     </ERPLayout>
   );
