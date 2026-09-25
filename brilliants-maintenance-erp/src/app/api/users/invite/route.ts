@@ -108,33 +108,50 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { error: profileError } = await admin.from("profiles").insert({
-    id: authUserId,
-    organization_id: organizationId ?? undefined,
-    plant_id: plant_id || null,
-    employee_code: body.employee_code?.trim() || null,
-    name,
-    email,
-    phone: body.phone?.trim() || null,
-    status: "active",
-  });
-  if (profileError) {
-    return NextResponse.json(
-      { error: `Account created but profile failed: ${profileError.message}` },
-      { status: 500 }
-    );
+  const { data: existingProfile } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", authUserId)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    const { error: profileError } = await admin.from("profiles").insert({
+      id: authUserId,
+      organization_id: organizationId ?? undefined,
+      plant_id: plant_id || null,
+      employee_code: body.employee_code?.trim() || null,
+      name,
+      email,
+      phone: body.phone?.trim() || null,
+      status: "active",
+    });
+    if (profileError) {
+      return NextResponse.json(
+        { error: `Account created but profile failed: ${profileError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
-  const { error: userRoleError } = await admin.from("user_roles").insert({
-    user_id: authUserId,
-    role_id,
-    plant_id: plant_id || null,
-  });
-  if (userRoleError) {
-    return NextResponse.json(
-      { error: `Profile saved but role assignment failed: ${userRoleError.message}` },
-      { status: 500 }
-    );
+  const { data: existingRole } = await admin
+    .from("user_roles")
+    .select("user_id")
+    .eq("user_id", authUserId)
+    .eq("role_id", role_id)
+    .maybeSingle();
+
+  if (!existingRole) {
+    const { error: userRoleError } = await admin.from("user_roles").insert({
+      user_id: authUserId,
+      role_id,
+      plant_id: plant_id || null,
+    });
+    if (userRoleError) {
+      return NextResponse.json(
+        { error: `Profile saved but role assignment failed: ${userRoleError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   await admin.from("audit_logs").insert({

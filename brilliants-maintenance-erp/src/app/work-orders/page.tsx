@@ -47,7 +47,7 @@ interface WorkOrderRow {
 export default function WorkOrdersListPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, plant } = useAuth();
   const canDelete = hasPermission("work_order", "delete");
 
   const [items, setItems] = useState<WorkOrderRow[]>([]);
@@ -59,7 +59,7 @@ export default function WorkOrdersListPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
 
-  const [plantId, setPlantId] = useState("");
+  const [plantId, setPlantId] = useState(() => plant?.id ?? "");
   const [equipmentId, setEquipmentId] = useState("");
   const [type, setType] = useState("");
   const [priority, setPriority] = useState("");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { useAuth } from "@/lib/auth/context";
@@ -8,8 +8,32 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { LoadingSpinner } from "@/components/common/loading";
 
+/**
+ * Keys page children by the active plant id so that switching the plant in the
+ * header remounts the current page. Every page reloads its data with the new
+ * plant scope directly on mount.
+ */
+function PlantScopedContent({
+  plantId,
+  children,
+}: {
+  plantId: string | null;
+  children: React.ReactNode;
+}) {
+  const key = plantId ?? "no-plant";
+  return (
+    <>
+      {React.Children.toArray(children).map((child, i) =>
+        React.isValidElement(child)
+          ? React.cloneElement(child, { key: `${key}-${i}` })
+          : child
+      )}
+    </>
+  );
+}
+
 export function ERPLayout({ children }: { children: React.ReactNode }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, plant } = useAuth();
   const router = useRouter();
   const [navOpen, setNavOpen] = useState(false);
 
@@ -39,7 +63,11 @@ export function ERPLayout({ children }: { children: React.ReactNode }) {
       <Sidebar mobileOpen={navOpen} onClose={() => setNavOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onToggleNav={() => setNavOpen((v) => !v)} />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          <PlantScopedContent plantId={plant?.id ?? null}>
+            {children}
+          </PlantScopedContent>
+        </main>
       </div>
     </div>
   );

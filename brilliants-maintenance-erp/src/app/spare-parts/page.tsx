@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
 import { SPARE_PART_CATEGORIES } from "@/lib/constants";
 import {
   Package,
@@ -47,12 +48,13 @@ interface SparePartRow {
 export default function SparePartsListPage() {
   const supabase = createClient();
   const router = useRouter();
+  const { plant } = useAuth();
 
   const [rows, setRows] = useState<SparePartRow[]>([]);
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [plantId, setPlantId] = useState("all");
+  const [plantId, setPlantId] = useState(() => plant?.id ?? "all");
   const [category, setCategory] = useState("all");
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [outOfStockOnly, setOutOfStockOnly] = useState(false);

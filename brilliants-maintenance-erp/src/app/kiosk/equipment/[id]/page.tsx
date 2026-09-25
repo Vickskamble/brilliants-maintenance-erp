@@ -134,7 +134,10 @@ export default function KioskEquipmentHubPage() {
             <p className="mt-0.5 font-mono text-sm text-blue-600">
               {hub.equipment_code}
             </p>
-            <p className="text-xs text-gray-500">{hub.plants?.name ?? "-"}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-gray-500">{hub.plants?.name ?? "-"}</p>
+              {hub.status && <StatusBadge status={hub.status} />}
+            </div>
           </div>
           <button
             type="button"

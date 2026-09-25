@@ -37,6 +37,7 @@ export interface EquipmentHubRow {
   equipment_name: string;
   qr_code: string | null;
   photo_url: string | null;
+  status: string | null;
   plants: { name: string } | null;
   work_orders: KioskWorkOrder[];
   maintenance_schedules: KioskPm[];
@@ -133,6 +134,7 @@ export async function getEquipmentHub(
       equipment_name,
       qr_code,
       photo_url,
+      status,
       plants:plant_id(name)
     `
     )
@@ -231,7 +233,7 @@ export async function performPm(
   const nowIso = now.toISOString();
   const { data: sched } = await supabase
     .from("maintenance_schedules")
-    .select("interval_days, notes")
+    .select("interval_days, notes, equipment:equipment_id(id, status)")
     .eq("id", scheduleId)
     .single();
 
@@ -247,11 +249,35 @@ export async function performPm(
     .update({
       last_run_at: nowIso,
       next_run_at: nextRunIso,
-      notes: notes ?? sched?.notes ?? null,
+      notes: notes ?? (sched as { notes?: string | null } | null)?.notes ?? null,
     })
     .eq("id", scheduleId);
 
   if (error) return { error: error.message };
+
+  const equipment = (sched as unknown as {
+    equipment?: { id: string; status: string } | null;
+  } | null)?.equipment;
+
+  if (equipment?.id) {
+    const currentStatus = equipment.status;
+    const eligible = ["under_maintenance", "standby", "breakdown"];
+    if (currentStatus && eligible.includes(currentStatus)) {
+      await supabase
+        .from("equipment")
+        .update({ status: "active" })
+        .eq("id", equipment.id);
+      await supabase.from("equipment_status_history").insert({
+        organization_id: scope.organizationId ?? null,
+        equipment_id: equipment.id,
+        old_status: currentStatus,
+        new_status: "active",
+        reason: "PM completed",
+        changed_by: user?.id ?? null,
+        changed_at: nowIso,
+      });
+    }
+  }
 
   const audit: AuditInput = {
     action: "pm.completed",

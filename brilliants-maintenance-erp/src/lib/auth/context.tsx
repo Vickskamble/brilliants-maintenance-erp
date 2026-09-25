@@ -64,7 +64,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPlants(plantsData || []);
 
         if (plantsData && plantsData.length > 0) {
+          const savedPlantId =
+            typeof window !== "undefined" && plantsData.length > 1
+              ? window.localStorage.getItem("erp.selectedPlantId")
+              : null;
           const selectedPlant =
+            (savedPlantId &&
+              plantsData.find((p) => p.id === savedPlantId)) ||
             plantsData.find((p) => p.id === profileData.plant_id) ||
             plantsData[0];
           setPlant(selectedPlant);
@@ -180,6 +186,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setSelectedPlant = (plant: Plant | null) => {
     setPlant(plant);
+    if (typeof window !== "undefined") {
+      if (plant) window.localStorage.setItem("erp.selectedPlantId", plant.id);
+      else window.localStorage.removeItem("erp.selectedPlantId");
+    }
   };
 
   const checkPermission = (module: string, action: string): boolean => {

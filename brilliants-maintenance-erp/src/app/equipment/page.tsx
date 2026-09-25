@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/ui/badge";
 import { ERPDataTable } from "@/components/erp/table/erp-data-table";
 import { exportRowsToCsv } from "@/components/erp/table/erp-table-export";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
 import {
   Cog,
   Plus,
@@ -50,11 +51,12 @@ interface EquipmentRowItem {
 export default function EquipmentListPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { plant } = useAuth();
 
   const [items, setItems] = useState<EquipmentRowItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [plantId, setPlantId] = useState("");
+  const [plantId, setPlantId] = useState(() => plant?.id ?? "");
   const [categoryId, setCategoryId] = useState("");
   const [criticalityId, setCriticalityId] = useState("");
   const [status, setStatus] = useState("");
