@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
 import { WORK_ORDER_TYPES, PRIORITY_LEVELS, WORK_ORDER_STATUSES } from "@/lib/constants";
 import { WorkOrder } from "@/types/database";
+import { useAuth } from "@/lib/auth/context";
 import { ChevronLeft, Save } from "lucide-react";
 
 export default function EditWorkOrderPage() {
@@ -23,8 +24,12 @@ export default function EditWorkOrderPage() {
   const id = params.id;
   const router = useRouter();
   const supabase = createClient();
+  const { user } = useAuth();
 
   const [workOrder, setWorkOrder] = useState<WorkOrder | null>(null);
+  const [originalAssignedTo, setOriginalAssignedTo] = useState<string | null>(
+    null
+  );
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [equipment, setEquipment] = useState<{ id: string; equipment_code: string; equipment_name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +45,10 @@ export default function EditWorkOrderPage() {
       supabase.from("plants").select("id, name").order("name"),
       supabase.from("equipment").select("id, equipment_code, equipment_name").order("equipment_code"),
     ]);
-    if (wo.data) setWorkOrder(wo.data as WorkOrder);
+    if (wo.data) {
+      setWorkOrder(wo.data as WorkOrder);
+      setOriginalAssignedTo(wo.data.assigned_to ?? null);
+    }
     if (pl.data) setPlants(pl.data);
     if (eq.data) setEquipment(eq.data);
     setIsLoading(false);
@@ -62,6 +70,12 @@ export default function EditWorkOrderPage() {
     e.preventDefault();
     if (!workOrder) return;
     setIsSaving(true);
+    const assignedTo = workOrder.assigned_to?.trim() || null;
+    const actorFields: Record<string, unknown> = {};
+    if (assignedTo !== originalAssignedTo) {
+      actorFields.assigned_by = assignedTo ? (user?.id ?? null) : null;
+      actorFields.assigned_at = assignedTo ? new Date().toISOString() : null;
+    }
     const { error } = await supabase
       .from("work_orders")
       .update({
@@ -71,10 +85,12 @@ export default function EditWorkOrderPage() {
         priority: workOrder.priority,
         plant_id: workOrder.plant_id,
         equipment_id: workOrder.equipment_id,
+        assigned_to: assignedTo,
         planned_start: workOrder.planned_start,
         planned_end: workOrder.planned_end,
         actual_start: workOrder.actual_start,
         actual_end: workOrder.actual_end,
+        ...actorFields,
       })
       .eq("id", id);
     setIsSaving(false);
@@ -139,6 +155,15 @@ export default function EditWorkOrderPage() {
                     <option key={eq.id} value={eq.id}>{eq.equipment_code} - {eq.equipment_name}</option>
                   ))}
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="assigned_to">Assigned To</Label>
+                <Input
+                  id="assigned_to"
+                  value={workOrder.assigned_to ?? ""}
+                  onChange={(e) => update("assigned_to", e.target.value || (null as never))}
+                  placeholder="Technician name or email"
+                />
               </div>
               <div>
                 <Label htmlFor="planned_start">Planned Start</Label>

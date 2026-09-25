@@ -17,13 +17,15 @@ import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { ErpKanban } from "@/components/erp/erp-kanban";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { deleteWorkOrder } from "@/services/work-orders";
 import {
   WORK_ORDER_TYPES,
   WORK_ORDER_STATUSES,
   PRIORITY_LEVELS,
 } from "@/lib/constants";
-import { Plus, Search, LayoutList, KanbanSquare } from "lucide-react";
+import { Plus, Search, LayoutList, KanbanSquare, Trash2 } from "lucide-react";
 
 interface WorkOrderRow {
   id: string;
@@ -34,6 +36,7 @@ interface WorkOrderRow {
   priority: string;
   status: string;
   title: string;
+  assigned_to: string | null;
   planned_start: string | null;
   planned_end: string | null;
   created_at: string;
@@ -44,6 +47,8 @@ interface WorkOrderRow {
 export default function WorkOrdersListPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { user, hasPermission } = useAuth();
+  const canDelete = hasPermission("work_order", "delete");
 
   const [items, setItems] = useState<WorkOrderRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -97,6 +102,7 @@ export default function WorkOrdersListPage() {
         priority,
         status,
         title,
+        assigned_to,
         planned_start,
         planned_end,
         created_at,
@@ -105,6 +111,7 @@ export default function WorkOrdersListPage() {
       `,
         { count: "exact" }
       )
+      .is("deleted_at", null)
       .order("work_order_no");
 
     if (plantId) query = query.eq("plant_id", plantId);
@@ -141,10 +148,12 @@ export default function WorkOrdersListPage() {
         priority,
         status,
         title,
+        assigned_to,
         plants(name),
         equipment(equipment_code, equipment_name)
       `
       )
+      .is("deleted_at", null)
       .order("work_order_no")
       .limit(1000);
 
@@ -162,6 +171,19 @@ export default function WorkOrdersListPage() {
     const { data } = await query;
     setKanbanItems((data as unknown as WorkOrderRow[]) ?? []);
     setIsKanbanLoading(false);
+  }
+
+  async function handleDelete(row: WorkOrderRow) {
+    if (
+      !window.confirm(
+        `Delete ${row.work_order_no}? The work order will be hidden but history is preserved.`
+      )
+    ) {
+      return;
+    }
+    await deleteWorkOrder(row.id, user?.id);
+    void load();
+    if (view === "kanban") void loadKanban();
   }
 
   return (
@@ -379,6 +401,24 @@ export default function WorkOrdersListPage() {
               </span>
             ),
           },
+          ...(canDelete
+            ? [
+                {
+                  key: "actions",
+                  header: "",
+                  render: (row: WorkOrderRow) => (
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(row)}
+                      className="rounded-md p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
+                      title="Delete work order"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  ),
+                },
+              ]
+            : []),
         ]}
         data={items}
         loading={isLoading}

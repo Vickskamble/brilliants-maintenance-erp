@@ -314,6 +314,12 @@ export interface WorkOrder {
   work_request_id: string | null;
   equipment_id: string | null;
   maintenance_plan_id: string | null;
+  assigned_to: string | null;
+  created_by?: string | null;
+  assigned_by?: string | null;
+  assigned_at?: string | null;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   type: WorkOrderType;
   priority: PriorityLevel;
   status: WorkOrderStatus;

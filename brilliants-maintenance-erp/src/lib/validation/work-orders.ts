@@ -7,6 +7,7 @@ export const workOrderSchema = z
     work_request_id: z.string().nullable(),
     equipment_id: z.string().nullable(),
     maintenance_plan_id: z.string().nullable(),
+    assigned_to: z.string().nullable(),
     type: z.enum([
       "preventive",
       "breakdown",

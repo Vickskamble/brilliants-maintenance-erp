@@ -62,7 +62,12 @@ export default function ChangeWorkOrderStatusPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSaving(true);
-    const { error } = await changeWorkOrderStatus(id, status, remarks.trim() || undefined);
+    const { error } = await changeWorkOrderStatus(
+      id,
+      status,
+      remarks.trim() || undefined,
+      user?.id
+    );
     setIsSaving(false);
     if (error) {
       window.alert(error.message);

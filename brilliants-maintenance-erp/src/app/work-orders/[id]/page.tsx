@@ -44,6 +44,7 @@ interface HistoryRow {
   old_status: string | null;
   new_status: string;
   remarks: string | null;
+  changed_by: string | null;
   changed_at: string;
 }
 
@@ -69,6 +70,7 @@ export default function WorkOrderDetailPage() {
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [spares, setSpares] = useState<SpareRecordRow[]>([]);
+  const [actorNames, setActorNames] = useState<Record<string, string | null>>({});
 
   const tabs = [
     { key: "overview", label: "Overview" },
@@ -94,6 +96,24 @@ export default function WorkOrderDetailPage() {
     if (activityRes.data) setActivities(activityRes.data as unknown as ActivityRow[]);
     if (historyRes.data) setHistory(historyRes.data as unknown as HistoryRow[]);
     if (spareRes.data) setSpares(spareRes.data as unknown as SpareRecordRow[]);
+    const actorIds = new Set<string>();
+    if (woRes.data?.created_by) actorIds.add(woRes.data.created_by);
+    if (woRes.data?.assigned_by) actorIds.add(woRes.data.assigned_by);
+    if (woRes.data?.closed_by) actorIds.add(woRes.data.closed_by);
+    if (historyRes.data?.[0]?.changed_by) {
+      actorIds.add(historyRes.data[0].changed_by);
+    }
+    const nameMap: Record<string, string | null> = {};
+    if (actorIds.size > 0) {
+      const actorRes = await supabase
+        .from("profiles")
+        .select("id, name")
+        .in("id", [...actorIds]);
+      actorRes.data?.forEach((p) => {
+        nameMap[p.id] = p.name;
+      });
+    }
+    setActorNames(nameMap);
     setIsLoading(false);
   }
 
@@ -164,6 +184,52 @@ export default function WorkOrderDetailPage() {
           </span>
         )}
       </div>
+
+      {(workOrder.created_by || workOrder.assigned_to || workOrder.closed_by) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+          {workOrder.created_by && (
+            <span>
+              Created by{" "}
+              <span className="font-medium text-gray-700">
+                {actorNames[workOrder.created_by] ?? workOrder.created_by}
+              </span>
+            </span>
+          )}
+          {workOrder.assigned_to && (
+            <span>
+              Assigned to{" "}
+              <span className="font-medium text-gray-700">
+                {workOrder.assigned_to}
+              </span>
+              {workOrder.assigned_by ? (
+                <>
+                  {" "}
+                  by{" "}
+                  <span className="font-medium text-gray-700">
+                    {actorNames[workOrder.assigned_by] ?? workOrder.assigned_by}
+                  </span>
+                </>
+              ) : null}
+            </span>
+          )}
+          {workOrder.closed_by && (
+            <span>
+              Closed by{" "}
+              <span className="font-medium text-gray-700">
+                {actorNames[workOrder.closed_by] ?? workOrder.closed_by}
+              </span>
+            </span>
+          )}
+          {history[0]?.changed_by && (
+            <span>
+              Last change by{" "}
+              <span className="font-medium text-gray-700">
+                {actorNames[history[0].changed_by] ?? history[0].changed_by}
+              </span>
+            </span>
+          )}
+        </div>
+      )}
 
       <Tabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 

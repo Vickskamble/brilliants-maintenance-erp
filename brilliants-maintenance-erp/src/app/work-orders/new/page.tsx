@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { workOrderSchema, WorkOrderFormValues } from "@/lib/validation/work-orders";
 import { WORK_ORDER_TYPES, WORK_ORDER_STATUSES, PRIORITY_LEVELS } from "@/lib/constants";
 import { Plant } from "@/types/database";
+import { useAuth } from "@/lib/auth/context";
 import { Save, ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
 
@@ -25,6 +26,7 @@ const emptyValues: WorkOrderFormValues = {
   work_request_id: null,
   equipment_id: null,
   maintenance_plan_id: null,
+  assigned_to: null,
   type: "preventive",
   priority: "medium",
   status: "draft",
@@ -40,6 +42,7 @@ const emptyValues: WorkOrderFormValues = {
 export default function NewWorkOrderPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { user } = useAuth();
 
   const [values, setValues] = useState<WorkOrderFormValues>(emptyValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -89,9 +92,17 @@ export default function NewWorkOrderPage() {
     }
 
     setIsSaving(true);
+    const assignedTo = parsed.data.assigned_to?.trim() || null;
+    const now = new Date().toISOString();
     const { data, error } = await supabase
       .from("work_orders")
-      .insert(parsed.data)
+      .insert({
+        ...parsed.data,
+        assigned_to: assignedTo,
+        created_by: user?.id ?? null,
+        assigned_by: assignedTo ? (user?.id ?? null) : null,
+        assigned_at: assignedTo ? now : null,
+      })
       .select()
       .single();
 
@@ -164,6 +175,15 @@ export default function NewWorkOrderPage() {
                     </option>
                   ))}
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="assigned_to">Assigned To</Label>
+                <Input
+                  id="assigned_to"
+                  value={values.assigned_to ?? ""}
+                  onChange={(e) => update("assigned_to", e.target.value || null)}
+                  placeholder="Technician name or email"
+                />
               </div>
               <div>
                 <Label htmlFor="type">Type</Label>
