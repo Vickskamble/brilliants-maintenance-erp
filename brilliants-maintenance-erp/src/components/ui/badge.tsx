@@ -48,6 +48,7 @@ const statusColors: Record<string, string> = {
   verified: "bg-teal-100 text-teal-800",
   closed: "bg-gray-100 text-gray-800",
   cancelled: "bg-red-100 text-red-800",
+  rejected: "bg-red-100 text-red-800",
   reported: "bg-red-100 text-red-800",
   diagnosing: "bg-yellow-100 text-yellow-800",
   repairing: "bg-orange-100 text-orange-800",

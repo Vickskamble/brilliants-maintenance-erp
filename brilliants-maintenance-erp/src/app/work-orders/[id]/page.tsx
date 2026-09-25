@@ -21,9 +21,17 @@ import {
   getWorkOrderStatusHistory,
 } from "@/services/work-orders";
 import { AttachmentPanel } from "@/components/platform/attachment-panel";
+import { ApprovalPanel } from "@/components/approvals/approval-panel";
 import { WorkOrder } from "@/types/database";
 import { WORK_ORDER_TYPES, WORK_ORDER_STATUSES, PRIORITY_LEVELS } from "@/lib/constants";
-import { ArrowRight } from "lucide-react";
+import { useAuth } from "@/lib/auth/context";
+import { useQueryScope } from "@/lib/auth/query-scope";
+import { ArrowRight, Send } from "lucide-react";
+import {
+  getPendingApprovalForEntity,
+  submitForApproval,
+  type ApproverContext,
+} from "@/services/approvals";
 
 interface WorkOrderDetail extends WorkOrder {
   plants?: { name: string } | null;
@@ -71,6 +79,20 @@ export default function WorkOrderDetailPage() {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [spares, setSpares] = useState<SpareRecordRow[]>([]);
   const [actorNames, setActorNames] = useState<Record<string, string | null>>({});
+  const [hasPendingApproval, setHasPendingApproval] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { user, profile, roles, hasPermission } = useAuth();
+  const scope = useQueryScope();
+
+  const approverCtx: ApproverContext | null = user
+    ? {
+        userId: user.id,
+        userName: profile?.name ?? user.email ?? "User",
+        roleCodes: roles.map((r) => r.code),
+        hasPermission,
+      }
+    : null;
 
   const tabs = [
     { key: "overview", label: "Overview" },
@@ -117,6 +139,38 @@ export default function WorkOrderDetailPage() {
     setIsLoading(false);
   }
 
+  async function checkPendingApproval() {
+    if (!id) return;
+    const pending = await getPendingApprovalForEntity("work_order", id);
+    setHasPendingApproval(!!pending);
+  }
+
+  async function doSubmitForApproval() {
+    if (!approverCtx || !workOrder) return;
+    setIsSubmitting(true);
+    const res = await submitForApproval(scope, approverCtx, {
+      entityType: "work_order",
+      entityId: workOrder.id,
+      toStatus: "submitted",
+      fromTitle: workOrder.title,
+    });
+    setIsSubmitting(false);
+    if (res.error) {
+      window.alert(res.error);
+    } else if (!res.created) {
+      const supabaseClient = createClient();
+      await supabaseClient
+        .from("work_orders")
+        .update({ status: "submitted", updated_at: new Date().toISOString() })
+        .eq("id", workOrder.id);
+    }
+    await load();
+  }
+
+  useEffect(() => {
+    void checkPendingApproval();
+  }, [id, workOrder?.status]);
+
   useEffect(() => {
     load();
   }, [id]);
@@ -161,11 +215,22 @@ export default function WorkOrderDetailPage() {
         description={`${typeMeta?.label ?? workOrder.type} · ${priorityMeta?.label ?? workOrder.priority}`}
         action={
           <div className="flex items-center gap-2">
+            {workOrder.status === "draft" && (
+              <Button
+                onClick={() => void doSubmitForApproval()}
+                disabled={isSubmitting}
+              >
+                <Send className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Submitting..." : "Submit for Approval"}
+              </Button>
+            )}
             <Link href={`/work-orders/${workOrder.id}/edit`}>
               <Button variant="outline">Edit</Button>
             </Link>
             <Link href={`/work-orders/${workOrder.id}/status`}>
-              <Button>Update Status</Button>
+              <Button variant={workOrder.status === "draft" ? "outline" : "primary"}>
+                Update Status
+              </Button>
             </Link>
           </div>
         }
@@ -262,6 +327,17 @@ export default function WorkOrderDetailPage() {
                 </p>
               </div>
             )}
+            <div className="mt-6">
+              <ApprovalPanel
+                entityType="work_order"
+                entityId={workOrder.id}
+                title={workOrder.title}
+                onChange={() => {
+                  void load();
+                  void checkPendingApproval();
+                }}
+              />
+            </div>
           </CardContent>
         </Card>
       )}

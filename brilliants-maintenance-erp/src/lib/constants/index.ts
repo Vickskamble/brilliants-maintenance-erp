@@ -153,6 +153,11 @@ export const WORK_ORDER_STATUSES = [
     label: "Cancelled",
     color: "text-red-600 bg-red-50",
   },
+  {
+    value: "rejected",
+    label: "Rejected",
+    color: "text-red-600 bg-red-50",
+  },
 ] as const;
 
 export const SPARE_PART_CATEGORIES = [

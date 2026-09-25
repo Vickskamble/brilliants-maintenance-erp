@@ -29,7 +29,8 @@ export type WorkOrderStatus =
   | "completed"
   | "verified"
   | "closed"
-  | "cancelled";
+  | "cancelled"
+  | "rejected";
 
 export type PriorityLevel = "low" | "medium" | "high" | "urgent";
 

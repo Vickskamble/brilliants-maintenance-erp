@@ -42,6 +42,12 @@ import {
   Trash2,
   Package,
 } from "lucide-react";
+import {
+  decideApproval,
+  getPendingApprovalForEntity,
+  submitForApproval,
+  type ApproverContext,
+} from "@/services/approvals";
 
 interface LineItem {
   spare_part_id: string;
@@ -50,8 +56,17 @@ interface LineItem {
 }
 
 export default function MaterialRequestsPage() {
-  const { user } = useAuth();
+  const { user, profile, roles, hasPermission } = useAuth();
   const scope = useQueryScope();
+
+  const approverCtx: ApproverContext | null = user
+    ? {
+        userId: user.id,
+        userName: profile?.name ?? user.email ?? "User",
+        roleCodes: roles.map((r) => r.code),
+        hasPermission,
+      }
+    : null;
 
   const [items, setItems] = useState<MaterialRequestWithItems[]>([]);
   const [total, setTotal] = useState(0);
@@ -72,6 +87,10 @@ export default function MaterialRequestsPage() {
   });
   const [lines, setLines] = useState<LineItem[]>([{ spare_part_id: "", quantity_requested: "1", key: 1 }]);
   const [isSaving, setIsSaving] = useState(false);
+  const [rejecting, setRejecting] = useState<{ id: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
 
   useEffect(() => {
     setPage(1);
@@ -144,9 +163,69 @@ export default function MaterialRequestsPage() {
     void load();
   }
 
-  async function doAction(id: string, status: string) {
-    const res = await setMaterialRequestStatus(id, status);
+  async function doSubmitRequest(id: string) {
+    if (!approverCtx) return;
+    const res = await submitForApproval(scope, approverCtx, {
+      entityType: "material_request",
+      entityId: id,
+      toStatus: "submitted",
+    });
     if (res.error) window.alert(res.error);
+    if (!res.created) {
+      const fallback = await setMaterialRequestStatus(id, "submitted");
+      if (fallback.error) window.alert(fallback.error);
+    }
+    void load();
+  }
+
+  async function doApprove(id: string) {
+    if (!approverCtx) return;
+    const pending = await getPendingApprovalForEntity("material_request", id);
+    if (pending) {
+      const res = await decideApproval(scope, approverCtx, {
+        approvalId: pending.id,
+        decision: "approved",
+        comment: undefined,
+      });
+      if (res.error) window.alert(res.error);
+    } else {
+      const fallback = await setMaterialRequestStatus(id, "approved");
+      if (fallback.error) window.alert(fallback.error);
+    }
+    void load();
+  }
+
+  async function confirmReject() {
+    if (!approverCtx || !rejecting) return;
+    if (!rejectReason.trim()) {
+      setRejectError("A rejection reason is required.");
+      return;
+    }
+    setIsRejecting(true);
+    const pending = await getPendingApprovalForEntity("material_request", rejecting.id);
+    if (pending) {
+      const res = await decideApproval(scope, approverCtx, {
+        approvalId: pending.id,
+        decision: "rejected",
+        comment: rejectReason.trim(),
+      });
+      if (res.error) {
+        setIsRejecting(false);
+        setRejectError(res.error);
+        return;
+      }
+    } else {
+      const fallback = await setMaterialRequestStatus(rejecting.id, "rejected");
+      if (fallback.error) {
+        setIsRejecting(false);
+        setRejectError(fallback.error);
+        return;
+      }
+    }
+    setIsRejecting(false);
+    setRejecting(null);
+    setRejectReason("");
+    setRejectError("");
     void load();
   }
 
@@ -310,32 +389,32 @@ export default function MaterialRequestsPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => doAction(row.id, "submitted")}
+                                onClick={() => void doSubmitRequest(row.id)}
                               >
                                 <Send className="mr-1 h-3.5 w-3.5" />
                                 Submit
                               </Button>
                             )}
-                            {row.status === "submitted" && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-green-200 text-green-700 hover:bg-green-50"
-                                  onClick={() => doAction(row.id, "approved")}
-                                >
-                                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => doAction(row.id, "rejected")}
-                                >
-                                  <X className="mr-1 h-3.5 w-3.5" />
-                                  Reject
-                                </Button>
-                              </>
+                            {row.status === "submitted" && hasPermission("inventory", "approve") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-green-200 text-green-700 hover:bg-green-50"
+                                onClick={() => void doApprove(row.id)}
+                              >
+                                <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                                Approve
+                              </Button>
+                            )}
+                            {row.status === "submitted" && hasPermission("inventory", "reject") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setRejecting({ id: row.id })}
+                              >
+                                <X className="mr-1 h-3.5 w-3.5" />
+                                Reject
+                              </Button>
                             )}
                             {["draft", "submitted", "rejected"].includes(row.status) && (
                               <Button
@@ -493,6 +572,44 @@ export default function MaterialRequestsPage() {
                 placeholder="Optional notes"
               />
             </div>
+          </div>
+        </ERPModal>
+
+        <ERPModal
+          open={rejecting !== null}
+          onClose={() => {
+            setRejecting(null);
+            setRejectReason("");
+            setRejectError("");
+          }}
+          title="Reject Material Request"
+          description="Rejecting this request requires a reason."
+          footer={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejecting(null);
+                  setRejectReason("");
+                  setRejectError("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => void confirmReject()} disabled={isRejecting}>
+                {isRejecting ? "Rejecting..." : "Reject Request"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <Textarea
+              rows={3}
+              placeholder="Rejection reason (required)"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+            {rejectError && <p className="text-sm text-red-600">{rejectError}</p>}
           </div>
         </ERPModal>
       </PermissionGate>

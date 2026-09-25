@@ -19,6 +19,13 @@ import { ERPModal } from "@/components/erp/erp-modal";
 import { PermissionGate } from "@/components/auth/permission-gate";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useQueryScope } from "@/lib/auth/query-scope";
+import { useAuth } from "@/lib/auth/context";
+import {
+  decideApproval,
+  getPendingApprovalForEntity,
+  submitForApproval,
+  type ApproverContext,
+} from "@/services/approvals";
 import { PURCHASE_ORDER_STATUSES } from "@/lib/constants";
 import {
   listPurchaseOrders,
@@ -42,6 +49,16 @@ interface LineItem {
 
 export default function PurchaseOrdersPage() {
   const scope = useQueryScope();
+  const { user, profile, roles, hasPermission } = useAuth();
+
+  const approverCtx: ApproverContext | null = user
+    ? {
+        userId: user.id,
+        userName: profile?.name ?? user.email ?? "User",
+        roleCodes: roles.map((r) => r.code),
+        hasPermission,
+      }
+    : null;
 
   const [items, setItems] = useState<PurchaseOrderWithItems[]>([]);
   const [total, setTotal] = useState(0);
@@ -68,6 +85,10 @@ export default function PurchaseOrdersPage() {
     { spare_part_id: "", quantity_ordered: "1", unit_price: "0", key: 1 },
   ]);
   const [isSaving, setIsSaving] = useState(false);
+  const [rejecting, setRejecting] = useState<{ id: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
+  const [isRejecting, setIsRejecting] = useState(false);
 
   useEffect(() => {
     setPage(1);
@@ -179,9 +200,75 @@ export default function PurchaseOrdersPage() {
     void load();
   }
 
-  async function doAction(id: string, status: string) {
-    const res = await setPurchaseOrderStatus(id, status);
+  async function doSubmitRequest(id: string) {
+    if (!approverCtx) return;
+    const res = await submitForApproval(scope, approverCtx, {
+      entityType: "purchase_order",
+      entityId: id,
+      toStatus: "submitted",
+    });
     if (res.error) window.alert(res.error);
+    if (!res.created) {
+      const fallback = await setPurchaseOrderStatus(id, "submitted");
+      if (fallback.error) window.alert(fallback.error);
+    }
+    void load();
+  }
+
+  async function doApprove(id: string) {
+    if (!approverCtx) return;
+    const pending = await getPendingApprovalForEntity("purchase_order", id);
+    if (pending) {
+      const res = await decideApproval(scope, approverCtx, {
+        approvalId: pending.id,
+        decision: "approved",
+        comment: undefined,
+      });
+      if (res.error) window.alert(res.error);
+    } else {
+      const fallback = await setPurchaseOrderStatus(id, "approved");
+      if (fallback.error) window.alert(fallback.error);
+    }
+    void load();
+  }
+
+  async function confirmReject() {
+    if (!approverCtx || !rejecting) return;
+    if (!rejectReason.trim()) {
+      setRejectError("A rejection reason is required.");
+      return;
+    }
+    setIsRejecting(true);
+    const pending = await getPendingApprovalForEntity("purchase_order", rejecting.id);
+    if (pending) {
+      const res = await decideApproval(scope, approverCtx, {
+        approvalId: pending.id,
+        decision: "rejected",
+        comment: rejectReason.trim(),
+      });
+      if (res.error) {
+        setIsRejecting(false);
+        setRejectError(res.error);
+        return;
+      }
+    } else {
+      const fallback = await setPurchaseOrderStatus(rejecting.id, "cancelled");
+      if (fallback.error) {
+        setIsRejecting(false);
+        setRejectError(fallback.error);
+        return;
+      }
+    }
+    setIsRejecting(false);
+    setRejecting(null);
+    setRejectReason("");
+    setRejectError("");
+    void load();
+  }
+
+  async function doOrder(id: string) {
+    const fallback = await setPurchaseOrderStatus(id, "ordered");
+    if (fallback.error) window.alert(fallback.error);
     void load();
   }
 
@@ -357,39 +444,39 @@ export default function PurchaseOrdersPage() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => doAction(row.id, "submitted")}
+                                onClick={() => void doSubmitRequest(row.id)}
                               >
                                 <Send className="mr-1 h-3.5 w-3.5" />
                                 Submit
                               </Button>
                             )}
-                            {row.status === "submitted" && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-green-200 text-green-700 hover:bg-green-50"
-                                  onClick={() => doAction(row.id, "approved")}
-                                >
-                                  <CheckCheck className="mr-1 h-3.5 w-3.5" />
-                                  Approve
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => doAction(row.id, "cancelled")}
-                                >
-                                  <X className="mr-1 h-3.5 w-3.5" />
-                                  Cancel
-                                </Button>
-                              </>
+                            {row.status === "submitted" && hasPermission("inventory", "approve") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-green-200 text-green-700 hover:bg-green-50"
+                                onClick={() => void doApprove(row.id)}
+                              >
+                                <CheckCheck className="mr-1 h-3.5 w-3.5" />
+                                Approve
+                              </Button>
+                            )}
+                            {row.status === "submitted" && hasPermission("inventory", "reject") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setRejecting({ id: row.id })}
+                              >
+                                <X className="mr-1 h-3.5 w-3.5" />
+                                Reject
+                              </Button>
                             )}
                             {row.status === "approved" && (
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="border-cyan-200 text-cyan-700 hover:bg-cyan-50"
-                                onClick={() => doAction(row.id, "ordered")}
+                                onClick={() => void doOrder(row.id)}
                               >
                                 <Truck className="mr-1 h-3.5 w-3.5" />
                                 Mark Ordered
@@ -615,6 +702,44 @@ export default function PurchaseOrdersPage() {
               <ShoppingCart className="h-3.5 w-3.5" />
               Total is recomputed from line items on create.
             </p>
+          </div>
+        </ERPModal>
+
+        <ERPModal
+          open={rejecting !== null}
+          onClose={() => {
+            setRejecting(null);
+            setRejectReason("");
+            setRejectError("");
+          }}
+          title="Reject Purchase Order"
+          description="Rejecting this purchase order requires a reason."
+          footer={
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejecting(null);
+                  setRejectReason("");
+                  setRejectError("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => void confirmReject()} disabled={isRejecting}>
+                {isRejecting ? "Rejecting..." : "Reject PO"}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <Textarea
+              rows={3}
+              placeholder="Rejection reason (required)"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+            />
+            {rejectError && <p className="text-sm text-red-600">{rejectError}</p>}
           </div>
         </ERPModal>
       </PermissionGate>

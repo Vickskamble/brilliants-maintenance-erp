@@ -30,6 +30,7 @@ export const workOrderSchema = z
       "verified",
       "closed",
       "cancelled",
+      "rejected",
     ]),
     title: z.string().min(1, "Title is required"),
     description: z.string().nullable(),
@@ -62,6 +63,7 @@ export const workOrderStatusSchema = z.object({
     "verified",
     "closed",
     "cancelled",
+    "rejected",
   ]),
   remarks: z.string().nullable(),
 });

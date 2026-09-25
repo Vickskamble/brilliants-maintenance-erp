@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,11 +138,12 @@ export default function RolesPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredRoles.map((role) => (
-              <Card key={role.id} className="hover:border-blue-200">
+              <Link key={role.id} href={`/settings/roles/${role.id}`} className="block">
+                <Card className="h-full hover:border-blue-200 hover:shadow-sm">
                 <CardContent>
                   <div className="flex items-start justify-between">
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-900">
+                      <h3 className="text-sm font-semibold text-gray-900 hover:text-blue-600">
                         {role.name}
                       </h3>
                       <p className="mt-1 text-xs text-gray-500">
@@ -173,6 +175,7 @@ export default function RolesPage() {
                   </div>
                 </CardContent>
               </Card>
+              </Link>
             ))}
           </div>
         )}

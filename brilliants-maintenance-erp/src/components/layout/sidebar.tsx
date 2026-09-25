@@ -20,8 +20,10 @@ import {
   GitBranch,
   ChevronLeft,
   ChevronRight,
+  CheckSquare,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { countPendingApprovals, type ApproverContext } from "@/services/approvals";
 
 const SIDEBAR_ITEMS = [
   { label: "Dashboard", href: "/dashboard", module: "dashboard", action: "view" },
@@ -36,6 +38,7 @@ const SIDEBAR_ITEMS = [
   { label: "Vendors", href: "/vendors", module: "vendor", action: "view" },
   { label: "Shutdown", href: "/shutdowns", module: "shutdown", action: "view" },
   { label: "Reports", href: "/reports", module: "reports", action: "view" },
+  { label: "Approvals", href: "/approvals", module: "approval", action: "view" },
   { label: "Settings", href: "/settings", module: "settings", action: "view" },
 ];
 
@@ -52,6 +55,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Vendors: Truck,
   Shutdown: CalendarX,
   Reports: BarChart3,
+  Approvals: CheckSquare,
   Settings: Settings,
 };
 
@@ -63,8 +67,20 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const { permissions, hasPermission } = useAuth();
+  const { user, profile, roles, permissions, hasPermission } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!user || !hasPermission("approval", "view")) return;
+    const ctx: ApproverContext = {
+      userId: user.id,
+      userName: profile?.name ?? user.email ?? "User",
+      roleCodes: roles.map((r) => r.code),
+      hasPermission,
+    };
+    void countPendingApprovals(ctx).then(setPendingCount);
+  }, [pathname, user?.id]);
 
   const visibleItems = SIDEBAR_ITEMS.filter((item) =>
     hasPermission(item.module, item.action)
@@ -130,6 +146,13 @@ export function Sidebar({
                 >
                   {Icon && <Icon className="h-5 w-5 flex-shrink-0" />}
                   {!collapsed && <span>{item.label}</span>}
+                  {item.href === "/approvals" &&
+                    pendingCount > 0 &&
+                    !collapsed && (
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 text-[10px] font-semibold text-white">
+                        {pendingCount > 9 ? "9+" : pendingCount}
+                      </span>
+                    )}
                 </Link>
               </li>
             );
