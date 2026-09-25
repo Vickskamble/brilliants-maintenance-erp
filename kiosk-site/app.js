@@ -257,32 +257,32 @@
     const orParts = [];
     if (name) orParts.push(`assigned_to.ilike.%${name}%`);
     if (email) orParts.push(`assigned_to.ilike.%${email}%`);
-    if (!orParts.length) {
-      $("#mywork-count").textContent = "0";
-      box.textContent = "";
-      return;
-    }
-    const { data } = await supabase
-      .from("work_orders")
-      .select(
-        `id, work_order_no, title, type, priority, status, assigned_to,
-         equipment_id, equipment:equipment_id(equipment_code, equipment_name)`
-      )
-      .is("deleted_at", null)
-      .in("status", ["assigned", "in_progress", "on_hold"])
-      .or(orParts.join(","))
-      .order("created_at", { ascending: false })
-      .limit(50);
-    const rows = data || [];
-    $("#mywork-count").textContent = String(rows.length);
+    const base = () =>
+      supabase
+        .from("work_orders")
+        .select(
+          `id, work_order_no, title, type, priority, status, assigned_to,
+           equipment_id, equipment:equipment_id(equipment_code, equipment_name)`
+        )
+        .is("deleted_at", null)
+        .in("status", ["assigned", "in_progress", "on_hold"])
+        .order("created_at", { ascending: false })
+        .limit(50);
+    const queries = [base().is("assigned_to", null)];
+    if (orParts.length) queries.push(base().or(orParts.join(",")));
+    const results = await Promise.all(queries);
+    const rows = (results[0]?.data || []).concat(results[1]?.data || []);
+    const seen = new Set();
+    const merged = rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+    $("#mywork-count").textContent = String(merged.length);
     box.textContent = "";
-    if (!rows.length) {
+    if (!merged.length) {
       box.appendChild(
         h("div", { className: "center-empty", text: "No active work orders assigned to you." })
       );
       return;
     }
-    rows.forEach((wo) => {
+    merged.forEach((wo) => {
       const prio = wo.priority || "medium";
       box.appendChild(
         h("button", { className: "row", onclick: () => wo.equipment_id && showView("hub", { id: wo.equipment_id }) },
@@ -293,7 +293,8 @@
           h("div", { className: "row-title", text: wo.title }),
           h("div", { className: "row-meta" },
             h("span", { className: "badge " + prio, text: prio }),
-            h("span", { text: wo.equipment?.equipment_code || "General" })
+            h("span", { text: wo.equipment?.equipment_code || "General" }),
+            wo.assigned_to ? h("span", { text: "\u2192 " + wo.assigned_to }) : ""
           )
         )
       );
@@ -309,34 +310,34 @@
     const orParts = [];
     if (name) orParts.push(`assigned_to.ilike.%${name}%`);
     if (email) orParts.push(`assigned_to.ilike.%${email}%`);
-    if (!orParts.length) {
-      $("#pmdue-count").textContent = "0";
-      box.textContent = "";
-      return;
-    }
     const until = new Date(Date.now() + 7 * 86400000).toISOString();
-    const { data } = await supabase
-      .from("maintenance_schedules")
-      .select(
-        `id, schedule_no, task_type, interval_days, last_run_at, next_run_at,
-         assigned_to, equipment_id, equipment:equipment_id(equipment_code, equipment_name),
-         plants:plant_id(name)`
-      )
-      .eq("is_active", true)
-      .lte("next_run_at", until)
-      .or(orParts.join(","))
-      .order("next_run_at", { ascending: true })
-      .limit(50);
-    const rows = data || [];
-    $("#pmdue-count").textContent = String(rows.length);
+    const base = () =>
+      supabase
+        .from("maintenance_schedules")
+        .select(
+          `id, schedule_no, task_type, interval_days, last_run_at, next_run_at,
+           assigned_to, equipment_id, equipment:equipment_id(equipment_code, equipment_name),
+           plants:plant_id(name)`
+        )
+        .eq("is_active", true)
+        .lte("next_run_at", until)
+        .order("next_run_at", { ascending: true })
+        .limit(50);
+    const queries = [base().is("assigned_to", null)];
+    if (orParts.length) queries.push(base().or(orParts.join(",")));
+    const results = await Promise.all(queries);
+    const rows = (results[0]?.data || []).concat(results[1]?.data || []);
+    const seen = new Set();
+    const merged = rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+    $("#pmdue-count").textContent = String(merged.length);
     box.textContent = "";
-    if (!rows.length) {
+    if (!merged.length) {
       box.appendChild(
         h("div", { className: "center-empty", text: "No preventive maintenance due right now." })
       );
       return;
     }
-    rows.forEach((pm) => {
+    merged.forEach((pm) => {
       const due = pm.next_run_at
         ? new Date(pm.next_run_at).toLocaleDateString("en-IN", {
             day: "numeric",
@@ -355,7 +356,7 @@
             h("span", { text: pm.equipment?.equipment_code || "General" }),
             h("span", { text: pm.plants?.name || "-" })
           ),
-          h("div", { className: "row-foot muted", text: "Due " + due })
+          h("div", { className: "row-foot muted", text: "Due " + due + (pm.assigned_to ? " \u00b7 " + pm.assigned_to : "") })
         )
       );
     });
