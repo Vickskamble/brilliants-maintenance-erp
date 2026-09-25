@@ -18,8 +18,10 @@ import {
   Eye,
   Pencil,
   Download,
+  Printer,
 } from "lucide-react";
 import Link from "next/link";
+import { QrLabel } from "@/components/equipment/qr-label";
 import type {
   ERPColumn,
   ERPBulkAction,
@@ -30,6 +32,7 @@ interface EquipmentRowItem {
   id: string;
   equipment_code: string;
   equipment_name: string;
+  qr_code: string | null;
   plant_id: string | null;
   category_id: string | null;
   criticality_id: string | null;
@@ -67,6 +70,8 @@ export default function EquipmentListPage() {
   const [departments, setDepartments] = useState<
     { id: string; name: string }[]
   >([]);
+
+  const [printRows, setPrintRows] = useState<EquipmentRowItem[]>([]);
 
   useEffect(() => {
     loadFilterOptions();
@@ -113,6 +118,7 @@ export default function EquipmentListPage() {
         id,
         equipment_code,
         equipment_name,
+        qr_code,
         plant_id,
         category_id,
         criticality_id,
@@ -261,6 +267,15 @@ export default function EquipmentListPage() {
         );
       },
     },
+    {
+      label: "Print QR Labels",
+      icon: Printer,
+      variant: "secondary",
+      onClick: (rows) => {
+        setPrintRows(rows);
+        setTimeout(() => window.print(), 60);
+      },
+    },
   ];
 
   return (
@@ -355,6 +370,25 @@ export default function EquipmentListPage() {
         </Card>
       </div>
       </PermissionGate>
+
+      {printRows.length > 0 && (
+        <div className="print-only hidden">
+          <div className="grid grid-cols-3 gap-4">
+            {printRows.map((r) => (
+              <QrLabel
+                key={r.id}
+                equipment={{
+                  id: r.id,
+                  qr_code: r.qr_code,
+                  equipment_code: r.equipment_code,
+                  equipment_name: r.equipment_name,
+                  plants: r.plants?.[0] ?? null,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </ERPLayout>
   );
 }

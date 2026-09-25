@@ -28,7 +28,10 @@ import {
   deleteEquipmentComponent,
 } from "@/services/equipment";
 import { Equipment, EquipmentComponent } from "@/types/database";
-import { Pencil, ArrowLeft, MapPin, Cog, Plus, Trash2, Package } from "lucide-react";
+import { QrCode } from "@/components/equipment/qr-code";
+import { QrLabel } from "@/components/equipment/qr-label";
+import { buildQrPayload } from "@/lib/qrcode";
+import { Pencil, ArrowLeft, MapPin, Cog, Plus, Trash2, Package, Printer } from "lucide-react";
 import Link from "next/link";
 
 type EquipmentDetail = Equipment & {
@@ -253,6 +256,14 @@ export default function EquipmentDetailPage() {
           description={`${equipment.equipment_code} · ${equipment.asset_categories?.name ?? "Uncategorised"}`}
           action={
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="no-print"
+                onClick={() => window.print()}
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print Label
+              </Button>
               <Link href={`/equipment/${equipment.id}/edit`}>
                 <Button variant="outline">
                   <Pencil className="mr-2 h-4 w-4" />
@@ -286,23 +297,48 @@ export default function EquipmentDetailPage() {
 
         {activeTab === "overview" && (
           <ERPDetailSection title="Overview" icon={Cog}>
-            <div className="grid grid-cols-1 gap-px bg-gray-100 md:grid-cols-2">
-              <MetadataRow label="Manufacturer" value={equipment.manufacturer} />
-              <MetadataRow label="Make" value={equipment.make} />
-              <MetadataRow label="Model" value={equipment.model} />
-              <MetadataRow label="Serial Number" value={equipment.serial_number} />
-              <MetadataRow label="Plant" value={equipment.plants?.name} />
-              <MetadataRow label="Department" value={equipment.departments?.name} />
-              <MetadataRow label="Section" value={equipment.sections?.name} />
-              <MetadataRow label="Area" value={equipment.sections?.name} />
-              <MetadataRow label="Location" value={equipment.locations?.name} />
-              <MetadataRow label="Cost Center" value={equipment.cost_centers?.name} />
+            <div className="grid gap-4 md:grid-cols-[1fr_auto]">
+              <div className="grid grid-cols-1 gap-px bg-gray-100 md:grid-cols-2">
+                <MetadataRow label="Manufacturer" value={equipment.manufacturer} />
+                <MetadataRow label="Make" value={equipment.make} />
+                <MetadataRow label="Model" value={equipment.model} />
+                <MetadataRow label="Serial Number" value={equipment.serial_number} />
+                <MetadataRow label="Plant" value={equipment.plants?.name} />
+                <MetadataRow label="Department" value={equipment.departments?.name} />
+                <MetadataRow label="Section" value={equipment.sections?.name} />
+                <MetadataRow label="Area" value={equipment.sections?.name} />
+                <MetadataRow label="Location" value={equipment.locations?.name} />
+                <MetadataRow label="Cost Center" value={equipment.cost_centers?.name} />
+              </div>
+              <div className="no-print rounded-lg border border-gray-200 bg-white p-4">
+                <QrCode
+                  payload={
+                    equipment.qr_code || buildQrPayload(equipment.id)
+                  }
+                  size={160}
+                  className="mx-auto"
+                />
+                <p className="mt-2 text-center text-xs text-gray-500">
+                  Scan in Kiosk to open Equipment Hub
+                </p>
+              </div>
             </div>
             {equipment.description && (
               <div className="mt-4 border-t border-gray-100 pt-4">
                 <p className="text-sm text-gray-600">{equipment.description}</p>
               </div>
             )}
+            <div className="print-only hidden">
+              <QrLabel
+                equipment={{
+                  id: equipment.id,
+                  qr_code: equipment.qr_code,
+                  equipment_code: equipment.equipment_code,
+                  equipment_name: equipment.equipment_name,
+                  plants: equipment.plants,
+                }}
+              />
+            </div>
           </ERPDetailSection>
         )}
 
