@@ -53,8 +53,9 @@ const MONTH_LABELS = [
 ];
 
 export default function DashboardPage() {
-  const { organization } = useAuth();
+  const { organization, plant } = useAuth();
   const supabase = createClient();
+  const plantId = plant?.id ?? null;
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [trend, setTrend] = useState<MonthPoint[]>([]);
@@ -65,7 +66,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantId]);
 
   async function load() {
     const now = new Date();
@@ -82,6 +84,21 @@ export default function DashboardPage() {
       0
     ).toISOString();
 
+    let plantEqIds: string[] = [];
+    let plantEqFilter: ((q: any) => any) | null = null;
+    if (plantId) {
+      const { data: eqIds } = await supabase
+        .from("equipment")
+        .select("id")
+        .eq("plant_id", plantId);
+      plantEqIds = (eqIds ?? []).map((e) => (e as { id: string }).id);
+      plantEqFilter = (q: any) => q.eq("plant_id", plantId);
+    }
+
+    const scopeEq = (q: any) => (plantEqFilter ? plantEqFilter(q) : q);
+    const scopePm = (q: any) =>
+      plantId ? q.in("equipment_id", plantEqIds) : q;
+
     const [
       eqRes,
       critRes,
@@ -96,64 +113,88 @@ export default function DashboardPage() {
       bdTrendRes,
       upcomingRes,
     ] = await Promise.all([
-      supabase.from("equipment").select("id", { count: "exact", head: true }),
-      supabase
-        .from("equipment")
-        .select("criticality_profiles!inner(level)", {
-          count: "exact",
-          head: true,
-        })
-        .eq("criticality_profiles.level", "critical"),
-      supabase
-        .from("maintenance_schedules")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .gte("next_run_at", todayStart.toISOString())
-        .lt("next_run_at", todayEnd.toISOString()),
-      supabase
-        .from("maintenance_schedules")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .lt("next_run_at", now.toISOString()),
-      supabase
-        .from("work_orders")
-        .select("id", { count: "exact", head: true })
-        .not("status", "in", "(completed,closed,cancelled)"),
-      supabase
-        .from("breakdowns")
-        .select("id", { count: "exact", head: true })
-        .gte("reported_at", monthStart),
-      supabase
-        .from("maintenance_schedules")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true),
-      supabase
-        .from("maintenance_schedules")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .gte("next_run_at", now.toISOString()),
-      supabase
-        .from("maintenance_schedules")
-        .select("id", { count: "exact", head: true })
-        .eq("is_active", true)
-        .eq("task_type", "calibration")
-        .lte("next_run_at", thirtyDaysOut.toISOString()),
-      supabase
-        .from("spare_parts")
-        .select("id", { count: "exact", head: true })
-        .gt("current_stock", 0)
-        .lte("current_stock", "reorder_level"),
-      supabase
-        .from("breakdowns")
-        .select("reported_at")
-        .gte("reported_at", startOfMonth(now, 5).toISOString()),
-      supabase
-        .from("maintenance_schedules")
-        .select("id, schedule_no, next_run_at")
-        .eq("is_active", true)
-        .gte("next_run_at", now.toISOString())
-        .order("next_run_at", { ascending: true })
-        .limit(5),
+      scopeEq(
+        supabase.from("equipment").select("id", { count: "exact", head: true })
+      ),
+      scopeEq(
+        supabase
+          .from("equipment")
+          .select("criticality_profiles!inner(level)", {
+            count: "exact",
+            head: true,
+          })
+          .eq("criticality_profiles.level", "critical")
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+          .gte("next_run_at", todayStart.toISOString())
+          .lt("next_run_at", todayEnd.toISOString())
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+          .lt("next_run_at", now.toISOString())
+      ),
+      scopeEq(
+        supabase
+          .from("work_orders")
+          .select("id", { count: "exact", head: true })
+          .not("status", "in", "(completed,closed,cancelled)")
+      ),
+      scopeEq(
+        supabase
+          .from("breakdowns")
+          .select("id", { count: "exact", head: true })
+          .gte("reported_at", monthStart)
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+          .gte("next_run_at", now.toISOString())
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true)
+          .eq("task_type", "calibration")
+          .lte("next_run_at", thirtyDaysOut.toISOString())
+      ),
+      scopeEq(
+        supabase
+          .from("spare_parts")
+          .select("id", { count: "exact", head: true })
+          .gt("current_stock", 0)
+          .lte("current_stock", "reorder_level")
+      ),
+      scopeEq(
+        supabase
+          .from("breakdowns")
+          .select("reported_at")
+          .gte("reported_at", startOfMonth(now, 5).toISOString())
+      ),
+      scopePm(
+        supabase
+          .from("maintenance_schedules")
+          .select("id, schedule_no, next_run_at")
+          .eq("is_active", true)
+          .gte("next_run_at", now.toISOString())
+          .order("next_run_at", { ascending: true })
+          .limit(5)
+      ),
     ]);
 
     const activeTotal = activeSchedRes.count ?? 0;
