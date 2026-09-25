@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>Maintenance Kiosk</title>
+    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="BEM Kiosk" />
+    <link rel="icon" type="image/svg+xml" href="kiosk-icon.svg" />
+    <link rel="apple-touch-icon" href="kiosk-icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="config.js"></script>
+  </head>
+  <body>
+    <div class="toast-wrap" id="toasts"></div>
+
+    <!-- Login -->
+    <div id="login-view" class="login-wrap hidden">
+      <div class="login-box">
+        <div class="login-logo">&#9881;</div>
+        <h1>Maintenance Kiosk</h1>
+        <p class="sub">Sign in with your ERP account</p>
+        <form id="login-form">
+          <label for="login-email">Email</label>
+          <input
+            class="input"
+            id="login-email"
+            type="email"
+            autocomplete="username"
+            inputmode="email"
+            placeholder="you@company.com"
+            required
+          />
+          <label for="login-password">Password</label>
+          <input
+            class="input"
+            id="login-password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;"
+            required
+          />
+          <p id="login-msg" class="text-danger hidden"></p>
+          <button class="btn btn-primary" id="login-btn" type="submit">
+            Sign In
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- App shell -->
+    <div id="app-shell" class="app hidden">
+      <header class="header">
+        <div class="brand">
+          <span style="font-size: 1.25rem">&#128295;</span>
+          <div>
+            <div class="title">Maintenance Kiosk</div>
+            <div class="sub" id="header-user"></div>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn-ghost-sm btn-install hidden" id="btn-install">
+            &#8681; Install
+          </button>
+          <button class="btn-ghost-sm" id="btn-exit">&#9099; Exit</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="section" id="view-scan">
+          <div class="card">
+            <div class="section-title">
+              <span>Scan Equipment QR</span>
+            </div>
+            <div class="scanner-box">
+              <div id="scan-reader"></div>
+              <div id="scan-empty" class="scanner-empty hidden">
+                Starting camera...
+              </div>
+            </div>
+            <form id="manual-form" class="manual-form">
+              <input
+                id="manual-code"
+                class="input"
+                placeholder="BEM:... or equipment code"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+              />
+              <button class="search-btn" type="submit">&#128269;</button>
+            </form>
+            <div id="search-results"></div>
+          </div>
+        </section>
+
+        <section class="section hidden" id="view-my-work">
+          <div class="section-title">
+            <span>Assigned to me</span>
+            <span class="count" id="mywork-count"></span>
+          </div>
+          <div class="row-list" id="mywork-list"></div>
+        </section>
+
+        <section class="section hidden" id="view-pm-due">
+          <div class="section-title">
+            <span>PM due in next 7 days</span>
+            <span class="count" id="pmdue-count"></span>
+          </div>
+          <div class="row-list" id="pmdue-list"></div>
+        </section>
+
+        <section class="section hidden" id="view-hub">
+          <div id="hub-slot"></div>
+        </section>
+      </main>
+
+      <nav class="nav" id="bottom-nav">
+        <button data-tab="scan" class="active">
+          <span class="ico">&#10069;</span> Scan
+        </button>
+        <button data-tab="my-work">
+          <span class="ico">&#9783;</span> My Work
+        </button>
+        <button data-tab="pm-due">
+          <span class="ico">&#9202;</span> PM Due
+        </button>
+      </nav>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
