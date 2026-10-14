@@ -146,7 +146,7 @@ export async function getApprovalStep(
   const { data } = await supabase
     .from("workflow_steps")
     .select(
-      "*, workflow_definitions(id, module, name, status, organization_id, plant_id, sla_hours)"
+      "*, workflow_definitions!inner(id, module, name, status, organization_id, plant_id, sla_hours)"
     )
     .eq("workflow_definitions.module", module)
     .eq("workflow_definitions.status", "active")
@@ -373,7 +373,7 @@ async function findNextApprovalStep(
   const { data } = await supabase
     .from("workflow_steps")
     .select(
-      "*, workflow_definitions(id, module, name, status, organization_id, plant_id, sla_hours)"
+      "*, workflow_definitions!inner(id, module, name, status, organization_id, plant_id, sla_hours)"
     )
     .eq("workflow_definition_id", definitionId)
     .eq("require_approval", true)

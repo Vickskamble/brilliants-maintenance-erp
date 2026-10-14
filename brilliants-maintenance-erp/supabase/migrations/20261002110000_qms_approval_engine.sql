@@ -55,6 +55,16 @@ values
   ('77777777-7777-7777-7777-777777777735', '77777777-7777-7777-7777-777777777704', 4, 'QA Manager verification close', 'verified', 'closed', NULL, true, 'QA_MANAGER', 96)
 on conflict (id) do nothing;
 
+-- Backfill org/plant on the seeded steps: RLS on workflow_steps is org-scoped,
+-- so steps with a NULL organization_id would be hidden from tenant users.
+update public.workflow_steps ws
+set organization_id = wd.organization_id,
+    plant_id = wd.plant_id
+from public.workflow_definitions wd
+where ws.workflow_definition_id = wd.id
+  and wd.id::text like '77777777%'
+  and (ws.organization_id is null or ws.plant_id is null);
+
 -- ---------- 3. refresh_my_notifications: QMS approval links ----------
 -- Faithful recreation of the live org-scoped RPC with QMS entity-type link
 -- branches added. search_path and every organization_id filter are preserved
