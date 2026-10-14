@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
@@ -12,12 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
+import { performPm } from "@/services/kiosk";
 import {
   ArrowLeft,
   Pause,
   Play,
-  Trash2,
   CalendarClock,
+  Clock3,
+  CheckCircle2,
+  Pencil,
 } from "lucide-react";
 
 interface ScheduleDetail {
@@ -37,16 +41,25 @@ interface ScheduleDetail {
   equipment?: { equipment_code: string; equipment_name: string } | null;
 }
 
+interface RunLogRow {
+  id: string;
+  completed_at: string;
+  notes: string | null;
+  duration_minutes: number | null;
+  profiles: { name: string }[] | null;
+}
+
 export default function MaintenanceDetailPage() {
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
-  const router = useRouter();
   const supabase = createClient();
+  const { user, organization, plant } = useAuth();
 
   const [schedule, setSchedule] = useState<ScheduleDetail | null>(null);
+  const [runLogs, setRunLogs] = useState<RunLogRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   useEffect(() => {
     void load();
@@ -59,6 +72,15 @@ export default function MaintenanceDetailPage() {
       .eq("id", id)
       .single();
     if (data) setSchedule(data as unknown as ScheduleDetail);
+    const { data: runs } = await supabase
+      .from("maintenance_run_logs")
+      .select(
+        "id, completed_at, notes, duration_minutes, profiles:completed_by(name)"
+      )
+      .eq("maintenance_schedule_id", id)
+      .order("completed_at", { ascending: false })
+      .limit(20);
+    if (runs) setRunLogs(runs as unknown as RunLogRow[]);
     setIsLoading(false);
   }
 
@@ -77,21 +99,30 @@ export default function MaintenanceDetailPage() {
     void load();
   }
 
-  async function handleDelete() {
-    if (!confirm("Delete this maintenance schedule? This cannot be undone."))
-      return;
-    setIsDeleting(true);
-    const { error } = await supabase
-      .from("maintenance_schedules")
-      .delete()
-      .eq("id", id);
-    setIsDeleting(false);
+  async function completePm() {
+    if (!schedule) return;
+    const notes = window.prompt("Completion notes (optional)", "") ?? null;
+    const minutesInput = window.prompt("Time taken (minutes, optional)", "");
+    const durationMinutes = minutesInput
+      ? Math.max(0, Number(minutesInput) || 0)
+      : undefined;
+    setIsCompleting(true);
+    const { error } = await performPm(
+      schedule.id,
+      notes?.trim() || null,
+      {
+        organizationId: organization?.id ?? null,
+        plantId: plant?.id ?? null,
+      },
+      { id: user?.id, name: undefined },
+      durationMinutes
+    );
+    setIsCompleting(false);
     if (error) {
-      window.alert(error.message);
+      window.alert(error);
       return;
     }
-    router.push("/maintenance");
-    router.refresh();
+    void load();
   }
 
   if (isLoading) {
@@ -126,9 +157,11 @@ export default function MaintenanceDetailPage() {
       <PageHeader
         title={schedule.schedule_no ?? "Maintenance Schedule"}
         backHref="/maintenance"
-        description={`${schedule.equipment?.equipment_code ?? "No equipment"} · ${
-          schedule.task_type ?? "task"
-        }`}
+        description={`${schedule.equipment?.equipment_code ?? "No equipment"}${
+          schedule.equipment?.equipment_name
+            ? ` · ${schedule.equipment.equipment_name}`
+            : ""
+        } · ${schedule.task_type ?? "task"}`}
         action={
           <div className="flex items-center gap-2">
             <Link href="/maintenance">
@@ -137,7 +170,17 @@ export default function MaintenanceDetailPage() {
                 Back
               </Button>
             </Link>
-            <Button variant="outline" onClick={toggleActive} disabled={isSaving}>
+            <Link href={`/maintenance/${id}/edit`}>
+              <Button variant="outline">
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              onClick={toggleActive}
+              disabled={isSaving}
+            >
               {schedule.is_active ? (
                 <Pause className="mr-2 h-4 w-4" />
               ) : (
@@ -149,9 +192,9 @@ export default function MaintenanceDetailPage() {
                   ? "Pause"
                   : "Resume"}
             </Button>
-            <Button variant="danger" onClick={handleDelete} disabled={isDeleting}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              {isDeleting ? "Deleting..." : "Delete"}
+            <Button onClick={completePm} disabled={isCompleting}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {isCompleting ? "Completing..." : "Complete PM"}
             </Button>
           </div>
         }
@@ -233,6 +276,37 @@ export default function MaintenanceDetailPage() {
                     : "—"
                 }
               />
+              {runLogs.length > 0 && (
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    Completed Runs
+                  </p>
+                  <ul className="space-y-3">
+                    {runLogs.map((run) => (
+                      <li
+                        key={run.id}
+                        className="rounded-lg border border-gray-100 px-3 py-2"
+                      >
+                        <p className="text-xs font-medium text-gray-900">
+                          {new Date(run.completed_at).toLocaleString("en-IN")}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {run.profiles?.[0]?.name ?? "Unknown"} ·{" "}
+                          {run.duration_minutes != null
+                            ? `${run.duration_minutes} min`
+                            : "duration n/a"}
+                        </p>
+                        {run.notes && (
+                          <p className="mt-1 text-xs text-gray-600">
+                            {run.notes}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

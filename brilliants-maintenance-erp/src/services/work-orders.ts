@@ -172,13 +172,16 @@ export async function changeWorkOrderStatus(
   if (error) return { data: null, error };
 
   if (oldStatus && oldStatus !== newStatus) {
-    await supabase.from("work_order_status_history").insert({
+    const histRes = await supabase.from("work_order_status_history").insert({
       work_order_id: id,
+      organization_id: (data as { organization_id?: string | null })?.organization_id ?? undefined,
+      plant_id: (data as { plant_id?: string | null })?.plant_id ?? undefined,
       old_status: oldStatus,
       new_status: newStatus,
       remarks: remarks || null,
       changed_by: actorId ?? null,
     });
+    if (histRes.error) return { data: null, error: histRes.error };
   }
   return { data: (data as unknown as WorkOrderRow) ?? null, error: null };
 }

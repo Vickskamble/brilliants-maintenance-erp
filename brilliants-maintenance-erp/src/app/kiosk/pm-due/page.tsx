@@ -9,20 +9,20 @@ import { RefreshCw, AlarmClock } from "lucide-react";
 
 export default function KioskPmDuePage() {
   const router = useRouter();
-  const { user, profile, isLoading: authLoading } = useAuth();
+  const { profile, isLoading: authLoading } = useAuth();
   const [items, setItems] = useState<KioskPm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   async function load() {
-    if (!profile || !user) return;
-    const rows = await getDuePm(profile.name, user.email);
+    if (!profile) return;
+    const rows = await getDuePm(profile.plant_id);
     setItems(rows);
     setIsLoading(false);
   }
 
   useEffect(() => {
     void load();
-  }, [profile, user]);
+  }, [profile]);
 
   useEffect(() => {
     const timer = setInterval(() => void load(), 30000);
@@ -84,19 +84,18 @@ onClick={() =>
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-semibold text-gray-900">
-                {pm.task_type ?? "Preventive Maintenance"}
+                {pm.equipment?.equipment_name ?? "General Equipment"}
               </span>
               <Badge variant="warning">Due</Badge>
             </div>
-            <p className="mt-1 font-mono text-xs text-blue-600">
-              {pm.schedule_no ?? pm.id.slice(0, 8)}
+            <p className="mt-1 font-mono text-xs font-semibold text-blue-600">
+              {pm.equipment?.equipment_code ?? pm.schedule_no ?? pm.id.slice(0, 8)}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-              <span className="truncate">
-                {pm.equipment?.equipment_code ?? "General"}
-              </span>
-              <span>·</span>
-              <span>{pm.plants?.name ?? "-"}</span>
+            <div className="mt-1 text-xs text-gray-500">
+              <span className="capitalize">{pm.task_type?.replace(/_/g, " ") ?? "Preventive Maintenance"}</span>
+              {pm.equipment?.departments?.name && (
+                <span> · {pm.equipment.departments.name}</span>
+              )}
             </div>
             <p className="mt-1.5 text-xs font-medium text-amber-600">
               Due{" "}

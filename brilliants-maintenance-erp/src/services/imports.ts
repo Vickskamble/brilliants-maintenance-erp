@@ -234,6 +234,7 @@ export async function runImport(
         location: row.location || null,
         description: row.description || null,
       };
+      if (scope.organizationId) payload.organization_id = scope.organizationId;
       if (scope.plantId) payload.plant_id = scope.plantId;
       const { error } = await supabase.from("spare_parts").insert(payload);
       if (error) {

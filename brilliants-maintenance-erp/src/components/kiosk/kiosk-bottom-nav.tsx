@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { QrCode, ClipboardList, AlarmClock } from "lucide-react";
+import { QrCode, ClipboardList, AlarmClock, ClipboardPlus } from "lucide-react";
 
 const TABS = [
   {
@@ -18,6 +18,12 @@ const TABS = [
     match: (path: string) => path === "/kiosk/my-work",
   },
   {
+    href: "/kiosk/new-work",
+    label: "New Work",
+    icon: ClipboardPlus,
+    match: (path: string) => path === "/kiosk/new-work",
+  },
+  {
     href: "/kiosk/pm-due",
     label: "PM Due",
     icon: AlarmClock,
@@ -31,7 +37,7 @@ export function KioskBottomNav() {
 
   return (
     <nav className="border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)]">
-      <div className="grid grid-cols-3">
+      <div className="grid grid-cols-4">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = tab.href === active;

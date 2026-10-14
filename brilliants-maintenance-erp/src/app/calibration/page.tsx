@@ -13,6 +13,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import { Plus, Gauge } from "lucide-react";
 
 interface CalibrationRow {
@@ -116,7 +117,7 @@ export default function CalibrationPage() {
                       header: "Equipment",
                       render: (row) => (
                         <span className="text-sm text-gray-700">
-                          {row.equipment?.[0]?.equipment_code ?? "-"}
+                          {rel(row.equipment)?.equipment_code ?? "-"}
                         </span>
                       ),
                     },

@@ -7,7 +7,9 @@ import type {
 } from "./types";
 
 function escapeLike(value: string): string {
-  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+  return value
+    .replace(/[\\%_]/g, (match) => `\\${match}`)
+    .replace(/[,().]/g, " ");
 }
 
 function orFilter(escaped: string, fields: string[]): string {
@@ -28,14 +30,28 @@ async function searchTabled(
   const supabase = createClient();
   const escaped = escapeLike(q.trim());
 
+  const selectCols = ["id", ...Object.values(select).filter(Boolean)];
+  if (table === "maintenance_schedules") {
+    selectCols.push("equipment!inner(id, organization_id, plant_id)");
+  }
+
   let query = supabase
     .from(table)
-    .select(Object.keys(select).join(", "))
+    .select(selectCols.join(", "))
     .or(orFilter(escaped, fields))
     .limit(5);
 
-  if (scopes.includes("org") && orgId) query = query.eq("organization_id", orgId);
-  if (scopes.includes("plant") && plantId) query = query.eq("plant_id", plantId);
+  if (table === "maintenance_schedules") {
+    if (orgId) query = query.eq("equipment.organization_id", orgId);
+    if (plantId) query = query.eq("equipment.plant_id", plantId);
+  } else {
+    if (scopes.includes("org") && orgId) query = query.eq("organization_id", orgId);
+    if (scopes.includes("plant") && plantId) query = query.eq("plant_id", plantId);
+  }
+
+  if (table === "work_orders") {
+    query = query.is("deleted_at", null);
+  }
 
   const { data, error } = await query;
   if (error || !data) return null;

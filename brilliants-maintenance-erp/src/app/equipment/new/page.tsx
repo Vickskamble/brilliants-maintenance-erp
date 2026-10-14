@@ -10,8 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
 import { equipmentSchema, EquipmentFormValues } from "@/lib/validation/equipment";
-import { Save, ArrowLeft, Cog } from "lucide-react";
+import { Save, ArrowLeft, Cog, CalendarRange } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { FormError } from "@/components/ui/form-error";
+import { FREQUENCY_TYPES } from "@/lib/constants";
 import Link from "next/link";
 
 const emptyValues: EquipmentFormValues = {
@@ -37,21 +42,53 @@ const emptyValues: EquipmentFormValues = {
   purchase_cost: null,
   warranty_start: null,
   warranty_end: null,
-  amc_start: null,
-  amc_end: null,
-  criticality_id: null,
-  status: "active",
-  description: null,
-};
+amc_start: null,
+    amc_end: null,
+    criticality_id: null,
+    status: "active",
+    description: null,
+  };
+
+interface ScheduleForm {
+  task_type: string;
+  frequency: string;
+  interval_days: string;
+  next_run_at: string;
+  assigned_to: string;
+  notes: string;
+}
+
+const TASK_TYPES = [
+  { value: "inspection", label: "Inspection" },
+  { value: "cleaning", label: "Cleaning" },
+  { value: "lubrication", label: "Lubrication" },
+  { value: "calibration", label: "Calibration" },
+  { value: "testing", label: "Testing" },
+  { value: "replacement", label: "Parts Replacement" },
+  { value: "repair", label: "Repair" },
+  { value: "overhaul", label: "Overhaul" },
+];
 
 export default function NewEquipmentPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { profile } = useAuth();
 
   const [values, setValues] = useState<EquipmentFormValues>(emptyValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingRefs, setIsLoadingRefs] = useState(true);
+
+  const [createSchedule, setCreateSchedule] = useState(false);
+  const [schedule, setSchedule] = useState<ScheduleForm>({
+    task_type: "",
+    frequency: "",
+    interval_days: "",
+    next_run_at: "",
+    assigned_to: "",
+    notes: "",
+  });
+  const [scheduleActive, setScheduleActive] = useState(true);
 
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -98,6 +135,40 @@ export default function NewEquipmentPage() {
     setValues((prev) => ({ ...prev, [field]: value as never }));
   }
 
+  function todayLocalValue(): string {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+  }
+
+  function toggleSchedule(enabled: boolean) {
+    setCreateSchedule(enabled);
+    if (enabled && !schedule.next_run_at) {
+      setSchedule((prev) => ({ ...prev, next_run_at: todayLocalValue() }));
+    }
+  }
+
+  function validateSchedule(): Record<string, string> {
+    const next: Record<string, string> = {};
+    if (!schedule.task_type)
+      next.sTaskType = "Task type is required when creating a schedule";
+    if (!schedule.frequency)
+      next.sFrequency = "Frequency is required when creating a schedule";
+    if (!schedule.next_run_at)
+      next.sNextRunAt = "Next run date is required when creating a schedule";
+    if (schedule.interval_days && Number(schedule.interval_days) <= 0)
+      next.sIntervalDays = "Interval must be a positive number";
+    return next;
+  }
+
+  async function generateScheduleNo() {
+    const result = await supabase
+      .from("maintenance_schedules")
+      .select("*", { count: "exact", head: true });
+    const count = result.count ?? 0;
+    return `MAINT-${String(count + 1).padStart(4, "0")}`;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -112,9 +183,18 @@ export default function NewEquipmentPage() {
       return;
     }
 
+    if (createSchedule) {
+      const scheduleErrors = validateSchedule();
+      if (Object.keys(scheduleErrors).length > 0) {
+        setErrors(scheduleErrors);
+        return;
+      }
+    }
+
     setIsSaving(true);
     const payload = {
       ...parsed.data,
+      organization_id: profile?.organization_id ?? null,
       purchase_cost:
         parsed.data.purchase_cost == null
           ? null
@@ -127,11 +207,42 @@ export default function NewEquipmentPage() {
       .select()
       .single();
 
-    setIsSaving(false);
     if (error) {
+      setIsSaving(false);
       setErrors({ form: error.message });
       return;
     }
+
+    if (createSchedule) {
+      const schedulePayload = {
+        schedule_no: await generateScheduleNo(),
+        equipment_id: data.id,
+        organization_id: profile?.organization_id ?? null,
+        plant_id: values.plant_id ?? null,
+        task_type: schedule.task_type || null,
+        frequency: schedule.frequency || null,
+        interval_days: schedule.interval_days
+          ? Number(schedule.interval_days)
+          : null,
+        next_run_at: schedule.next_run_at || null,
+        assigned_to: schedule.assigned_to || null,
+        is_active: scheduleActive,
+        notes: schedule.notes || null,
+      };
+      const { error: schedError } = await supabase
+        .from("maintenance_schedules")
+        .insert(schedulePayload);
+      if (schedError) {
+        setIsSaving(false);
+        window.alert(
+          `Equipment saved, but schedule could not be created: ${schedError.message}`
+        );
+        router.push(`/equipment/${data.id}`);
+        return;
+      }
+    }
+
+    setIsSaving(false);
     router.push(`/equipment/${data.id}`);
   }
 
@@ -349,6 +460,146 @@ export default function NewEquipmentPage() {
                   ]}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-6 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                  <CalendarRange className="h-5 w-5 text-blue-600" />
+                  Maintenance Schedule
+                </div>
+                <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={createSchedule}
+                    onChange={(e) => toggleSchedule(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                  />
+                  Create schedule with this equipment
+                </label>
+              </div>
+              <p className="-mt-4 text-xs text-gray-500">
+                Optional: registration ke saath hi us equipment ka preventive
+                maintenance schedule bhi bana lo. Baad me Maintenance →
+                Add Schedule se bhi kar sakte ho.
+              </p>
+
+              {createSchedule && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="s_task_type">Task Type *</Label>
+                      <Select
+                        id="s_task_type"
+                        value={schedule.task_type}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            task_type: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Select task type...</option>
+                        {TASK_TYPES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
+                      <FormError message={errors.sTaskType} />
+                    </div>
+                    <div>
+                      <Label htmlFor="s_frequency">Frequency *</Label>
+                      <Select
+                        id="s_frequency"
+                        value={schedule.frequency}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            frequency: e.target.value,
+                          })
+                        }
+                      >
+                        <option value="">Select frequency...</option>
+                        {FREQUENCY_TYPES.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
+                      <FormError message={errors.sFrequency} />
+                    </div>
+                    <div>
+                      <Label htmlFor="s_interval_days">Interval (days)</Label>
+                      <Input
+                        id="s_interval_days"
+                        type="number"
+                        min={1}
+                        value={schedule.interval_days}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            interval_days: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. 30"
+                      />
+                      <FormError message={errors.sIntervalDays} />
+                    </div>
+                    <div>
+                      <Label htmlFor="s_next_run_at">Next Run *</Label>
+                      <Input
+                        id="s_next_run_at"
+                        type="datetime-local"
+                        value={schedule.next_run_at}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            next_run_at: e.target.value,
+                          })
+                        }
+                      />
+                      <FormError message={errors.sNextRunAt} />
+                    </div>
+                    <div>
+                      <Label htmlFor="s_assigned_to">Assigned To</Label>
+                      <Input
+                        id="s_assigned_to"
+                        value={schedule.assigned_to}
+                        onChange={(e) =>
+                          setSchedule({
+                            ...schedule,
+                            assigned_to: e.target.value,
+                          })
+                        }
+                        placeholder="Technician name"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="s_notes">Notes</Label>
+                    <Textarea
+                      id="s_notes"
+                      rows={2}
+                      value={schedule.notes}
+                      onChange={(e) =>
+                        setSchedule({ ...schedule, notes: e.target.value })
+                      }
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={scheduleActive}
+                      onChange={(e) => setScheduleActive(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                    />
+                    Active schedule
+                  </label>
+                </div>
+              )}
             </CardContent>
           </Card>
 

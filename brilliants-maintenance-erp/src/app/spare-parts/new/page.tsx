@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { SPARE_PART_CATEGORIES, SPARE_PART_UNITS } from "@/lib/constants";
 import { sparePartSchema } from "@/lib/validation/spare-parts";
 import { ChevronLeft, Save } from "lucide-react";
@@ -20,6 +21,7 @@ import { ChevronLeft, Save } from "lucide-react";
 export default function NewSparePartPage() {
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
   const [form, setForm] = useState({
     part_code: "",
     part_name: "",
@@ -51,6 +53,8 @@ export default function NewSparePartPage() {
       part_name: form.part_name,
       category: form.category,
       unit: form.unit,
+      organization_id: scope.organizationId ?? null,
+      plant_id: scope.plantId ?? null,
       min_stock: form.min_stock,
       reorder_level: form.reorder_level,
       current_stock: form.initial_quantity,

@@ -149,20 +149,32 @@ export async function loadReportsSnapshot(
   const rangeIso = rangeStart?.toISOString() ?? null;
 
   try {
-    const scoped = (q: any) => {
+    const applyScopes = (q: any, allowed: string[]) => {
       let query = q;
       for (const [col, val] of Object.entries(filters)) {
-        query = query.eq(col, val);
+        if (allowed.includes(col)) query = query.eq(col, val);
       }
       return query;
     };
 
+    const orgId = filters.organization_id ?? null;
+    const plantId = filters.plant_id ?? null;
+
+    let msCountQuery = supabase
+      .from("maintenance_schedules")
+      .select("equipment!inner(id, organization_id, plant_id)", {
+        count: "exact",
+        head: true,
+      });
+    if (orgId) msCountQuery = msCountQuery.eq("equipment.organization_id", orgId);
+    if (plantId) msCountQuery = msCountQuery.eq("equipment.plant_id", plantId);
+
     const [eq, ms, pl, sp, ven] = await Promise.all([
-      scoped(supabase.from("equipment").select("id", { count: "exact", head: true })),
-      scoped(supabase.from("maintenance_schedules").select("id", { count: "exact", head: true })),
-      supabase.from("plants").select("id", { count: "exact", head: true }),
-      scoped(supabase.from("spare_parts").select("id", { count: "exact", head: true })),
-      scoped(supabase.from("vendors").select("id", { count: "exact", head: true })),
+      applyScopes(supabase.from("equipment").select("id", { count: "exact", head: true }), ["organization_id", "plant_id"]),
+      msCountQuery,
+      (orgId ? supabase.from("plants").select("id", { count: "exact", head: true }).eq("organization_id", orgId) : Promise.resolve({ count: 0 })),
+      applyScopes(supabase.from("spare_parts").select("id", { count: "exact", head: true }), ["organization_id", "plant_id"]),
+      applyScopes(supabase.from("vendors").select("id", { count: "exact", head: true }), ["organization_id"]),
     ]);
 
     let woQuery: any = supabase.from("work_orders").select("status, type, actual_end, created_at");
@@ -170,9 +182,9 @@ export async function loadReportsSnapshot(
       .from("breakdowns")
       .select("id, equipment_id, reported_at, restored_at, downtime_minutes, status, severity");
     let poQuery: any = supabase.from("purchase_orders").select("status, total_amount, created_at");
-    woQuery = scoped(woQuery);
-    bdQuery = scoped(bdQuery);
-    poQuery = scoped(poQuery);
+    woQuery = applyScopes(woQuery, ["organization_id", "plant_id"]);
+    bdQuery = applyScopes(bdQuery, ["organization_id", "plant_id"]);
+    poQuery = applyScopes(poQuery, ["organization_id", "plant_id"]);
     if (rangeIso) {
       woQuery = woQuery.gte("created_at", rangeIso);
       bdQuery = bdQuery.gte("reported_at", rangeIso);
@@ -188,21 +200,28 @@ export async function loadReportsSnapshot(
     const breakdowns = (bdRes.data ?? []) as BreakdownRow[];
     const purchaseOrders = (poRes.data ?? []) as PurchaseOrderRow[];
 
+    const breakdownEquipIds = breakdowns
+      .map((b) => b.equipment_id)
+      .filter(Boolean) as string[];
+
+    const equipmentMap = new Map<string, string>();
+
     let eqQuery: any = supabase
       .from("equipment")
-      .select("id, equipment_code, equipment_name")
-      .in("id", breakdowns.map((b) => b.equipment_id).filter(Boolean) as string[]);
-    eqQuery = scoped(eqQuery);
-    const eqRes = await eqQuery;
-    const equipmentMap = new Map<string, string>();
-    for (const e of eqRes.data ?? []) {
-      equipmentMap.set(e.id, `${e.equipment_code} · ${e.equipment_name}`);
+      .select("id, equipment_code, equipment_name");
+    if (breakdownEquipIds.length > 0) {
+      eqQuery = eqQuery.in("id", breakdownEquipIds);
+      eqQuery = applyScopes(eqQuery, ["organization_id", "plant_id"]);
+      const eqRes = await eqQuery;
+      for (const e of eqRes.data ?? []) {
+        equipmentMap.set(e.id, `${e.equipment_code} · ${e.equipment_name}`);
+      }
     }
 
     let slaQuery: any = supabase
       .from("sla_rules")
       .select("priority, duration_minutes, status, module");
-    slaQuery = scoped(slaQuery.eq("module", "breakdown"));
+    slaQuery = applyScopes(slaQuery.eq("module", "breakdown"), ["organization_id"]);
     const slaRes = await slaQuery;
     const slaRules = ((slaRes.data ?? []) as SlaRuleRow[]).filter(
       (r) => r.status === "active"

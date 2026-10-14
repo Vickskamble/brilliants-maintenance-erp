@@ -47,8 +47,9 @@ interface WorkOrderRow {
 export default function WorkOrdersListPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user, hasPermission, plant } = useAuth();
+  const { user, hasPermission, plant, organization } = useAuth();
   const canDelete = hasPermission("work_order", "delete");
+  const orgId = organization?.id ?? null;
 
   const [items, setItems] = useState<WorkOrderRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -75,8 +76,17 @@ export default function WorkOrdersListPage() {
     void loadPlants();
   }, []);
 
+  useEffect(() => {
+    const statusParam = new URLSearchParams(window.location.search).get(
+      "status"
+    );
+    if (statusParam === "open") setStatus("open");
+  }, []);
+
   async function loadPlants() {
-    const { data } = await supabase.from("plants").select("id, name").order("name");
+    let q = supabase.from("plants").select("id, name").order("name");
+    if (orgId) q = q.eq("organization_id", orgId);
+    const { data } = await q;
     if (data) setPlants(data);
   }
 
@@ -90,6 +100,7 @@ export default function WorkOrdersListPage() {
 
   async function load() {
     setIsLoading(true);
+    const needle = debouncedSearch.replace(/[%,()]/g, " ");
     let query = supabase
       .from("work_orders")
       .select(
@@ -114,14 +125,19 @@ export default function WorkOrdersListPage() {
       .is("deleted_at", null)
       .order("work_order_no");
 
+    if (orgId) query = query.eq("organization_id", orgId);
     if (plantId) query = query.eq("plant_id", plantId);
     if (equipmentId) query = query.eq("equipment_id", equipmentId);
     if (type) query = query.eq("type", type);
     if (priority) query = query.eq("priority", priority);
-    if (status) query = query.eq("status", status);
+    if (status === "open") {
+      query = query.not("status", "in", "(completed,verified,closed,cancelled)");
+    } else if (status) {
+      query = query.eq("status", status);
+    }
     if (debouncedSearch) {
       query = query.or(
-        `work_order_no.ilike.%${debouncedSearch}%,title.ilike.%${debouncedSearch}%`
+        `work_order_no.ilike.%${needle}%,title.ilike.%${needle}%`
       );
     }
 
@@ -136,6 +152,7 @@ export default function WorkOrdersListPage() {
 
   async function loadKanban() {
     setIsKanbanLoading(true);
+    const needle = debouncedSearch.replace(/[%,()]/g, " ");
     let query = supabase
       .from("work_orders")
       .select(
@@ -157,14 +174,19 @@ export default function WorkOrdersListPage() {
       .order("work_order_no")
       .limit(1000);
 
+    if (orgId) query = query.eq("organization_id", orgId);
     if (plantId) query = query.eq("plant_id", plantId);
     if (equipmentId) query = query.eq("equipment_id", equipmentId);
     if (type) query = query.eq("type", type);
     if (priority) query = query.eq("priority", priority);
-    if (status) query = query.eq("status", status);
+    if (status === "open") {
+      query = query.not("status", "in", "(completed,verified,closed,cancelled)");
+    } else if (status) {
+      query = query.eq("status", status);
+    }
     if (debouncedSearch) {
       query = query.or(
-        `work_order_no.ilike.%${debouncedSearch}%,title.ilike.%${debouncedSearch}%`
+        `work_order_no.ilike.%${needle}%,title.ilike.%${needle}%`
       );
     }
 
@@ -241,6 +263,7 @@ export default function WorkOrdersListPage() {
             </Select>
             <Select value={status} onChange={(e) => setStatus(e.target.value)} className="min-w-0">
               <option value="">All Statuses</option>
+              <option value="open">Open</option>
               {WORK_ORDER_STATUSES.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}

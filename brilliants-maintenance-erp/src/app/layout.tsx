@@ -1,18 +1,27 @@
 import { AuthProvider } from "@/lib/auth/context";
+import { PwaServiceWorkerRegistrar } from "@/components/pwa/service-worker-registrar";
 import "./globals.css";
 
 export const metadata = {
   title: "Brilliants Industrial Maintenance ERP",
   description:
     "Complete Digital Management System for Industrial Maintenance & Asset Reliability",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/kiosk-icon.svg",
-    apple: "/kiosk-icon.svg",
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/kiosk-icon.svg", sizes: "any", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
   appleWebApp: {
     capable: true,
     title: "BEM Kiosk",
     statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
   },
 };
 
@@ -32,6 +41,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <AuthProvider>{children}</AuthProvider>
+        <PwaServiceWorkerRegistrar />
       </body>
     </html>
   );

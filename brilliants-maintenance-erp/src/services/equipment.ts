@@ -31,7 +31,9 @@ export async function getEquipment(id: string): Promise<{
   const supabase = createClient();
   const { data, error } = await supabase
     .from("equipment")
-    .select("*")
+    .select(
+      "*, plants(name), locations(name), departments(name), sections(name), areas(name), cost_centers(name), asset_categories(name), criticality_profiles(name)"
+    )
     .eq("id", id)
     .single();
   return { data: (data as unknown as EquipmentRow) ?? null, error };
@@ -49,9 +51,19 @@ export async function addEquipmentComponent(
   }
 ): Promise<{ data: unknown; error: Error | null }> {
   const supabase = createClient();
+  const { data: eq } = await supabase
+    .from("equipment")
+    .select("organization_id, plant_id")
+    .eq("id", equipmentId)
+    .maybeSingle();
   const { data, error } = await supabase
     .from("equipment_components")
-    .insert({ equipment_id: equipmentId, ...payload })
+    .insert({
+      equipment_id: equipmentId,
+      organization_id: eq?.organization_id ?? undefined,
+      plant_id: eq?.plant_id ?? undefined,
+      ...payload,
+    })
     .select()
     .single();
   return { data, error };
@@ -147,6 +159,7 @@ export async function changeEquipmentStatus(
 
   if (oldStatus && oldStatus !== newStatus) {
     await supabase.from("equipment_status_history").insert({
+      organization_id: (data as { organization_id?: string | null })?.organization_id ?? undefined,
       equipment_id: id,
       old_status: oldStatus,
       new_status: newStatus,

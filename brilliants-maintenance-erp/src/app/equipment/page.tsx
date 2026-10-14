@@ -13,6 +13,9 @@ import { ERPDataTable } from "@/components/erp/table/erp-data-table";
 import { exportRowsToCsv } from "@/components/erp/table/erp-table-export";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/context";
+import { rel } from "@/lib/postgrest-rel";
+import { buildQrPayload } from "@/lib/qrcode";
+import { downloadQrPng } from "@/lib/qr-download";
 import {
   Cog,
   Plus,
@@ -67,13 +70,22 @@ export default function EquipmentListPage() {
     []
   );
   const [criticalities, setCriticalities] = useState<
-    { id: string; name: string }[]
+    { id: string; name: string; level: string | null }[]
   >([]);
   const [departments, setDepartments] = useState<
     { id: string; name: string }[]
   >([]);
 
   const [printRows, setPrintRows] = useState<EquipmentRowItem[]>([]);
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      document.body.classList.remove("qr-print");
+      setPrintRows([]);
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
 
   useEffect(() => {
     loadFilterOptions();
@@ -90,7 +102,7 @@ export default function EquipmentListPage() {
       supabase.from("asset_categories").select("id, name").order("name"),
       supabase
         .from("criticality_profiles")
-        .select("id, name")
+        .select("id, name, level")
         .order("name"),
     ]);
     if (plantsRes.data) setPlants(plantsRes.data);
@@ -98,6 +110,20 @@ export default function EquipmentListPage() {
     if (critRes.data) setCriticalities(critRes.data);
     loadDepartments("");
   }
+
+  useEffect(() => {
+    const criticalityParam = new URLSearchParams(window.location.search).get(
+      "criticality"
+    );
+    if (criticalityParam && criticalities.length > 0) {
+      const match = criticalities.find(
+        (c) =>
+          (c.level ?? "").toLowerCase() === criticalityParam.toLowerCase() ||
+          c.name.toLowerCase() === criticalityParam.toLowerCase()
+      );
+      if (match) setCriticalityId(match.id);
+    }
+  }, [criticalities]);
 
   async function loadDepartments(plant: string) {
     let query = supabase.from("departments").select("id, name").order("name");
@@ -177,10 +203,10 @@ export default function EquipmentListPage() {
       header: "Category",
       filterable: true,
       filterPlaceholder: "Filter category",
-      accessorFn: (row) => row.asset_categories?.[0]?.name ?? "",
+      accessorFn: (row) => rel(row.asset_categories)?.name ?? "",
       cell: (row) => (
         <span className="text-sm text-gray-600">
-          {row.asset_categories?.[0]?.name ?? "-"}
+          {rel(row.asset_categories)?.name ?? "-"}
         </span>
       ),
     },
@@ -189,20 +215,20 @@ export default function EquipmentListPage() {
       header: "Criticality",
       filterable: true,
       filterPlaceholder: "Filter criticality",
-      accessorFn: (row) => row.criticality_profiles?.[0]?.name ?? "",
+      accessorFn: (row) => rel(row.criticality_profiles)?.name ?? "",
       cell: (row) => (
         <span className="text-sm text-gray-600">
-          {row.criticality_profiles?.[0]?.name ?? "-"}
+          {rel(row.criticality_profiles)?.name ?? "-"}
         </span>
       ),
     },
     {
       id: "plant",
       header: "Plant",
-      accessorFn: (row) => row.plants?.[0]?.name ?? "",
+      accessorFn: (row) => rel(row.plants)?.name ?? "",
       cell: (row) => (
         <span className="text-sm text-gray-600">
-          {row.plants?.[0]?.name ?? "-"}
+          {rel(row.plants)?.name ?? "-"}
         </span>
       ),
     },
@@ -211,10 +237,10 @@ export default function EquipmentListPage() {
       header: "Department",
       filterable: true,
       filterPlaceholder: "Filter department",
-      accessorFn: (row) => row.departments?.[0]?.name ?? "",
+      accessorFn: (row) => rel(row.departments)?.name ?? "",
       cell: (row) => (
         <span className="text-sm text-gray-600">
-          {row.departments?.[0]?.name ?? "-"}
+          {rel(row.departments)?.name ?? "-"}
         </span>
       ),
     },
@@ -260,10 +286,10 @@ export default function EquipmentListPage() {
           rows.map((r) => [
             r.equipment_code,
             r.equipment_name,
-            r.asset_categories?.[0]?.name ?? "",
-            r.criticality_profiles?.[0]?.name ?? "",
-            r.plants?.[0]?.name ?? "",
-            r.departments?.[0]?.name ?? "",
+            rel(r.asset_categories)?.name ?? "",
+            rel(r.criticality_profiles)?.name ?? "",
+            rel(r.plants)?.name ?? "",
+            rel(r.departments)?.name ?? "",
             r.status,
           ])
         );
@@ -275,7 +301,25 @@ export default function EquipmentListPage() {
       variant: "secondary",
       onClick: (rows) => {
         setPrintRows(rows);
-        setTimeout(() => window.print(), 60);
+        document.body.classList.add("qr-print");
+        setTimeout(() => window.print(), 120);
+      },
+    },
+    {
+      label: "Download QR (PNG)",
+      icon: Download,
+      variant: "secondary",
+      onClick: (rows) => {
+        void (async () => {
+          for (const row of rows) {
+            await downloadQrPng(
+              row.qr_code || buildQrPayload(row.id),
+              `${row.equipment_code}-qr.png`,
+              512,
+              { code: row.equipment_code, name: row.equipment_name }
+            );
+          }
+        })();
       },
     },
   ];
@@ -374,19 +418,20 @@ export default function EquipmentListPage() {
       </PermissionGate>
 
       {printRows.length > 0 && (
-        <div className="print-only hidden">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="qr-print-sheet hidden">
+          <div className="grid grid-cols-3 gap-3">
             {printRows.map((r) => (
-              <QrLabel
-                key={r.id}
-                equipment={{
-                  id: r.id,
-                  qr_code: r.qr_code,
-                  equipment_code: r.equipment_code,
-                  equipment_name: r.equipment_name,
-                  plants: r.plants?.[0] ?? null,
-                }}
-              />
+              <div key={r.id} className="break-inside-avoid">
+                <QrLabel
+                  equipment={{
+                    id: r.id,
+                    qr_code: r.qr_code,
+                    equipment_code: r.equipment_code,
+                    equipment_name: r.equipment_name,
+                    plants: rel(r.plants),
+                  }}
+                />
+              </div>
             ))}
           </div>
         </div>

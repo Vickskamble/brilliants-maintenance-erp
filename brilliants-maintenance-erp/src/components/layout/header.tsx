@@ -52,7 +52,18 @@ export function Header({ onToggleNav }: { onToggleNav?: () => void }) {
           <Menu className="h-5 w-5" />
         </button>
         {organization && (
-          <div className="text-sm text-gray-600">
+          <div className="flex items-center gap-2.5 text-sm text-gray-600">
+            {organization.logo_url ? (
+              <img
+                src={organization.logo_url}
+                alt={organization.display_name}
+                className="h-8 w-8 rounded-lg border border-gray-200 bg-white object-contain p-0.5"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">
+                {getInitials(organization.display_name)}
+              </div>
+            )}
             <span className="font-medium text-gray-900">
               {organization.display_name}
             </span>

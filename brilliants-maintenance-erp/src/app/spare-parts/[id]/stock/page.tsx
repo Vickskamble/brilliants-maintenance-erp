@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { STOCK_MOVEMENT_TYPES } from "@/lib/constants";
 import { stockMovementSchema } from "@/lib/validation/spare-parts";
 import { SparePart } from "@/types/database";
@@ -26,6 +27,7 @@ export default function StockMovementPage() {
   const id = typeof params.id === "string" ? params.id : "";
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
 
   const [sparePart, setSparePart] = useState<SparePartStock | null>(null);
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
@@ -94,6 +96,7 @@ export default function StockMovementPage() {
 
     const { error } = await supabase.from("stock_movements").insert({
       part_id: id,
+      organization_id: sparePart?.organization_id ?? scope.organizationId ?? null,
       movement_type: mtype,
       quantity: form.quantity,
       plant_id: plantId,

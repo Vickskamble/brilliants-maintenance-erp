@@ -11,6 +11,8 @@ export interface ApproverContext {
   userId: string;
   userName: string;
   roleCodes: string[];
+  organizationId?: string | null;
+  plantId?: string | null;
   hasPermission: (module: string, action: string) => boolean;
 }
 
@@ -28,6 +30,8 @@ export interface ApprovalStep {
   require_reject_reason: boolean;
   condition: Record<string, unknown> | null;
   notify_role_codes: string[] | null;
+  approval_mode?: string | null;
+  sla_hours?: number | null;
 }
 
 export interface ApprovalDefinition {
@@ -35,7 +39,9 @@ export interface ApprovalDefinition {
   module: string;
   name: string;
   status: string;
+  organization_id: string | null;
   plant_id: string | null;
+  sla_hours?: number | null;
 }
 
 export interface ApprovalRow {
@@ -51,6 +57,9 @@ export interface ApprovalRow {
   comments: string | null;
   requested_at: string;
   decided_at: string | null;
+  due_at: string | null;
+  escalated_at: string | null;
+  escalated_to: string | null;
   step?: ApprovalStep;
   definition?: ApprovalDefinition;
 }
@@ -71,22 +80,52 @@ export interface ResolvedApproval extends ApprovalRow {
   entity_link: string;
 }
 
+const QMS_ENTITY_MODULE: Record<string, string> = {
+  document: "documents",
+  deviation: "deviation",
+  capa: "capa",
+  change: "change_control",
+};
+
 export function moduleForEntity(entityType: string): string {
-  return entityType === "work_order" ? "work_order" : "inventory";
+  if (entityType === "work_order") return "work_order";
+  if (QMS_ENTITY_MODULE[entityType]) return QMS_ENTITY_MODULE[entityType];
+  return "inventory";
 }
 
 function rejectTarget(entityType: string): string {
   return entityType === "purchase_order" ? "cancelled" : "rejected";
 }
 
-function entityMeta(entityType: string): { module: string; table: string; noCol: string; link: (id: string) => string } {
+const QMS_TABLE_BY_ENTITY: Record<string, string> = {
+  document: "qms_documents",
+  deviation: "qms_deviations",
+  capa: "qms_capas",
+  change: "qms_changes",
+};
+
+function entityMeta(
+  entityType: string
+): { module: string; table: string; noCol: string; link: (id: string) => string } {
   if (entityType === "work_order") {
     return { module: "work_order", table: "work_orders", noCol: "work_order_no", link: (id) => `/work-orders/${id}` };
   }
   if (entityType === "material_request") {
     return { module: "inventory", table: "material_requests", noCol: "request_no", link: () => "/inventory/requests" };
   }
-  return { module: "inventory", table: "purchase_orders", noCol: "po_no", link: () => "/inventory/orders" };
+  if (entityType === "purchase_order") {
+    return { module: "inventory", table: "purchase_orders", noCol: "po_no", link: () => "/inventory/orders" };
+  }
+  if (entityType === "document") {
+    return { module: "documents", table: "qms_documents", noCol: "doc_code", link: (id) => `/quality/documents/${id}` };
+  }
+  if (entityType === "deviation") {
+    return { module: "deviation", table: "qms_deviations", noCol: "deviation_no", link: (id) => `/quality/deviations/${id}` };
+  }
+  if (entityType === "capa") {
+    return { module: "capa", table: "qms_capas", noCol: "capa_no", link: (id) => `/quality/capas/${id}` };
+  }
+  return { module: "change_control", table: "qms_changes", noCol: "change_no", link: (id) => `/quality/change-control/${id}` };
 }
 
 function castRows<T>(data: unknown): T[] {
@@ -107,7 +146,7 @@ export async function getApprovalStep(
   const { data } = await supabase
     .from("workflow_steps")
     .select(
-      "*, workflow_definitions(id, module, name, status, plant_id)"
+      "*, workflow_definitions(id, module, name, status, organization_id, plant_id, sla_hours)"
     )
     .eq("workflow_definitions.module", module)
     .eq("workflow_definitions.status", "active")
@@ -123,6 +162,42 @@ export async function getApprovalStep(
   return { step, definition: def };
 }
 
+function computeDueAt(step: ApprovalStep, definition: ApprovalDefinition): string | null {
+  const hours = step.sla_hours ?? definition.sla_hours;
+  if (!hours || hours <= 0) return null;
+  return new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * Resolves the set of users that must sign a parallel step: every active
+ * member of the org that holds the step's approval_role_code (excluding the
+ * requester). Returns an empty array when the code is not set.
+ */
+async function resolveParallelApprovers(
+  supabase: SupabaseClient,
+  step: ApprovalStep,
+  definition: ApprovalDefinition,
+  requesterId: string
+): Promise<string[]> {
+  const roleCode = step.approval_role_code;
+  if (!roleCode) return [];
+  const orgId = definition.organization_id;
+  if (!orgId) return [];
+
+  const { data } = await supabase
+    .from("user_roles")
+    .select("user_id")
+    .eq("user_roles.roles.organization_id", orgId)
+    .eq("user_roles.roles.code", roleCode)
+    .neq("user_id", requesterId);
+
+  const ids = new Set<string>();
+  for (const row of (data ?? []) as any[]) {
+    if (row.user_id) ids.add(row.user_id as string);
+  }
+  return [...ids];
+}
+
 async function setEntityStatus(entityType: string, entityId: string, status: string, actorId?: string, remarks?: string): Promise<string | null> {
   if (entityType === "work_order") {
     const { error } = await changeWorkOrderStatus(entityId, status, remarks, actorId);
@@ -131,7 +206,16 @@ async function setEntityStatus(entityType: string, entityId: string, status: str
   if (entityType === "material_request") {
     return (await setMaterialRequestStatus(entityId, status)).error;
   }
-  return (await setPurchaseOrderStatus(entityId, status)).error;
+  if (entityType === "purchase_order") {
+    return (await setPurchaseOrderStatus(entityId, status)).error;
+  }
+  const table = QMS_TABLE_BY_ENTITY[entityType];
+  if (table) {
+    const supabase = createClient();
+    const { error } = await supabase.from(table).update({ status }).eq("id", entityId).select("id").maybeSingle();
+    return error?.message ?? null;
+  }
+  return null;
 }
 
 async function recordApprovalActivity(
@@ -166,8 +250,9 @@ async function recordApprovalActivity(
 /**
  * Submits an entity for approval. Moves the entity to `toStatus` (e.g. submitted) and,
  * when an active approval-requiring step starts at that status, creates the workflow
- * instance + pending approval record. Returns `created: false` when no approval gate
- * is configured so callers can fall back to their existing direct transition.
+ * instance + pending approval record(s) (multiple for parallel steps). Returns
+ * `created: false` when no approval gate is configured so callers can fall back to
+ * their existing direct transition.
  */
 export async function submitForApproval(
   scope: QueryScope,
@@ -188,6 +273,8 @@ export async function submitForApproval(
     .from("workflow_instances")
     .insert({
       workflow_definition_id: gate.definition.id,
+      organization_id: gate.definition.organization_id ?? undefined,
+      plant_id: gate.definition.plant_id ?? undefined,
       entity_type: input.entityType,
       entity_id: input.entityId,
       current_step_id: gate.step.id,
@@ -199,16 +286,27 @@ export async function submitForApproval(
     .single();
   if (instanceError || !instance) return { created: false, error: instanceError?.message ?? "Failed to start workflow" };
 
-  const { error: approvalError } = await supabase.from("workflow_approvals").insert({
+  const dueAt = computeDueAt(gate.step, gate.definition);
+  const isParallel = gate.step.approval_mode === "parallel";
+  const signers = isParallel
+    ? await resolveParallelApprovers(supabase, gate.step, gate.definition, user.userId)
+    : [];
+
+  const approvalRows = (signers.length > 0 ? signers : [user.userId]).map((signerId) => ({
     workflow_definition_id: gate.definition.id,
+    organization_id: gate.definition.organization_id ?? undefined,
+    plant_id: gate.definition.plant_id ?? undefined,
     workflow_instance_id: instance.id,
     step_id: gate.step.id,
+    requested_by: user.userId,
     entity_type: input.entityType,
     entity_id: input.entityId,
-    requested_by: user.userId,
-    status: "pending",
+    status: "pending" as const,
     comments: input.fromTitle ?? null,
-  });
+    due_at: dueAt ?? null,
+  }));
+
+  const { error: approvalError } = await supabase.from("workflow_approvals").insert(approvalRows);
   if (approvalError) {
     await supabase.from("workflow_instances").delete().eq("id", instance.id);
     return { created: false, error: approvalError.message };
@@ -221,7 +319,7 @@ export async function submitForApproval(
     action: "submit_for_approval",
     entityType: input.entityType,
     entityId: input.entityId,
-    metadata: { to_status: input.toStatus, step: gate.step.step_name },
+    metadata: { to_status: input.toStatus, step: gate.step.step_name, approvers: signers },
   });
   return { created: true, error: null };
 }
@@ -230,7 +328,7 @@ async function fetchApprovalRow(id: string): Promise<ApprovalRow | null> {
   const supabase = createClient();
   const { data } = await supabase
     .from("workflow_approvals")
-    .select("*, workflow_steps(*), workflow_definitions(id, module, name, status, plant_id)")
+    .select("*, workflow_steps(*), workflow_definitions(id, module, name, status, organization_id, plant_id, sla_hours)")
     .eq("id", id)
     .single();
   if (!data) return null;
@@ -264,8 +362,73 @@ export function canActOnApproval(
 }
 
 /**
- * Approves or rejects a pending approval, applying the resulting status change on the
- * entity and recording the decision + audit trail.
+ * Finds the next approval-requiring step in the same workflow definition.
+ * Returns null when the chain is exhausted (flow completes).
+ */
+async function findNextApprovalStep(
+  supabase: SupabaseClient,
+  definitionId: string,
+  currentOrderIndex: number
+): Promise<{ step: ApprovalStep; definition: ApprovalDefinition } | null> {
+  const { data } = await supabase
+    .from("workflow_steps")
+    .select(
+      "*, workflow_definitions(id, module, name, status, organization_id, plant_id, sla_hours)"
+    )
+    .eq("workflow_definition_id", definitionId)
+    .eq("require_approval", true)
+    .gt("order_index", currentOrderIndex)
+    .eq("workflow_definitions.status", "active")
+    .order("order_index", { ascending: true })
+    .limit(1);
+
+  const rows = castRows<ApprovalStep & { workflow_definitions: ApprovalDefinition }>(data);
+  const row = rows[0];
+  if (!row) return null;
+  const { workflow_definitions: def, ...step } = row;
+  return { step, definition: def };
+}
+
+/** True when every pending row for this instance+step has been decided approved. */
+async function isParallelStepFullyApproved(
+  supabase: SupabaseClient,
+  instanceId: string,
+  stepId: string
+): Promise<"pending" | "approved" | "rejected"> {
+  const { data } = await supabase
+    .from("workflow_approvals")
+    .select("status")
+    .eq("workflow_instance_id", instanceId)
+    .eq("step_id", stepId);
+
+  const rows = (data ?? []) as { status: string }[];
+  if (rows.length === 0) return "approved";
+  if (rows.some((r) => r.status === "rejected")) return "rejected";
+  if (rows.some((r) => r.status === "pending")) return "pending";
+  return "approved";
+}
+
+async function abortParallelSiblings(
+  supabase: SupabaseClient,
+  instanceId: string,
+  stepId: string,
+  decidedRowId: string,
+  comment: string
+): Promise<void> {
+  await supabase
+    .from("workflow_approvals")
+    .update({ status: "rejected", comments: `Aborted by sibling decision: ${comment}` })
+    .eq("workflow_instance_id", instanceId)
+    .eq("step_id", stepId)
+    .neq("id", decidedRowId)
+    .eq("status", "pending");
+}
+
+/**
+ * Approves or rejects a pending approval. Supports:
+ *  - multi-level chains (next step in the same definition is picked up)
+ *  - parallel/AND steps (advances only when every signer approved)
+ * applying the resulting status change on the entity and recording audit.
  */
 export async function decideApproval(
   scope: QueryScope,
@@ -287,9 +450,6 @@ export async function decideApproval(
   }
   const comment = (input.comment ?? "").trim() || null;
 
-  const targetStatus =
-    input.decision === "approved" ? approval.step.to_status : rejectTarget(approval.entity_type);
-
   const { error: updateError } = await supabase
     .from("workflow_approvals")
     .update({
@@ -301,25 +461,133 @@ export async function decideApproval(
     .eq("id", input.approvalId);
   if (updateError) return { error: updateError.message };
 
-  if (approval.workflow_instance_id) {
+  const instanceId = approval.workflow_instance_id;
+  const step = approval.step;
+  const isParallel = step.approval_mode === "parallel";
+
+  if (!instanceId) {
+    const targetStatus = input.decision === "approved" ? step.to_status : rejectTarget(approval.entity_type);
+    const statusError = await setEntityStatus(approval.entity_type, approval.entity_id, targetStatus, user.userId, comment ?? undefined);
+    if (statusError) return { error: statusError };
+    await recordApprovalActivity(scope, user, {
+      action: input.decision === "approved" ? "approve" : "reject",
+      entityType: approval.entity_type,
+      entityId: approval.entity_id,
+      metadata: { decision: input.decision, comment, step: step.step_name, to_status: targetStatus },
+    });
+    return { error: null };
+  }
+
+  if (input.decision === "rejected") {
+    if (isParallel) {
+      await abortParallelSiblings(supabase, instanceId, step.id, input.approvalId, comment ?? "rejected");
+    }
     await supabase
       .from("workflow_instances")
-      .update({
-        status: input.decision === "approved" ? "completed" : "rejected",
-        completed_at: new Date().toISOString(),
-        entity_updated_status: targetStatus,
-      })
-      .eq("id", approval.workflow_instance_id);
+      .update({ status: "rejected", completed_at: new Date().toISOString(), entity_updated_status: rejectTarget(approval.entity_type) })
+      .eq("id", instanceId);
+    const statusError = await setEntityStatus(approval.entity_type, approval.entity_id, rejectTarget(approval.entity_type), user.userId, comment ?? undefined);
+    if (statusError) return { error: statusError };
+    await recordApprovalActivity(scope, user, {
+      action: "reject",
+      entityType: approval.entity_type,
+      entityId: approval.entity_id,
+      metadata: { decision: "rejected", comment, step: step.step_name, to_status: rejectTarget(approval.entity_type) },
+    });
+    return { error: null };
   }
+
+  if (isParallel) {
+    const progress = await isParallelStepFullyApproved(supabase, instanceId, step.id);
+    if (progress === "pending") {
+      await recordApprovalActivity(scope, user, {
+        action: "approve",
+        entityType: approval.entity_type,
+        entityId: approval.entity_id,
+        metadata: { decision: "approved", comment, step: step.step_name, parallelWaiting: true },
+      });
+      return { error: null };
+    }
+    if (progress === "rejected") {
+      await supabase
+        .from("workflow_instances")
+        .update({ status: "rejected", completed_at: new Date().toISOString(), entity_updated_status: rejectTarget(approval.entity_type) })
+        .eq("id", instanceId);
+      const statusError = await setEntityStatus(approval.entity_type, approval.entity_id, rejectTarget(approval.entity_type), user.userId);
+      if (statusError) return { error: statusError };
+      await recordApprovalActivity(scope, user, {
+        action: "reject",
+        entityType: approval.entity_type,
+        entityId: approval.entity_id,
+        metadata: { decision: "rejected", step: step.step_name, to_status: rejectTarget(approval.entity_type) },
+      });
+      return { error: null };
+    }
+  }
+
+  const nextGate = await findNextApprovalStep(supabase, approval.workflow_definition_id, step.order_index);
+
+  // Chain only when the next approval gate starts exactly where this step ends
+  // (consecutive approvals, e.g. document L1 "approved" -> L2 "approved").
+  // Otherwise the flow is paused: the entity rests at this step's to_status
+  // and a later transition (e.g. marking work "actioned") re-enters approval
+  // for the next gate.
+  const shouldChain = nextGate !== null && nextGate.step.from_status === step.to_status;
+
+  if (nextGate && shouldChain) {
+    const nextDueAt = computeDueAt(nextGate.step, nextGate.definition);
+    const nextIsParallel = nextGate.step.approval_mode === "parallel";
+    const nextSigners = nextIsParallel
+      ? await resolveParallelApprovers(supabase, nextGate.step, nextGate.definition, approval.requested_by ?? "")
+      : [];
+
+    const nextRows = (nextSigners.length > 0 ? nextSigners : [(approval.requested_by ?? "")]).map((signerId) => ({
+      workflow_definition_id: approval.workflow_definition_id,
+      organization_id: nextGate.definition.organization_id ?? undefined,
+      plant_id: nextGate.definition.plant_id ?? undefined,
+      workflow_instance_id: instanceId,
+      step_id: nextGate.step.id,
+      requested_by: approval.requested_by ?? null,
+      entity_type: approval.entity_type,
+      entity_id: approval.entity_id,
+      status: "pending" as const,
+      due_at: nextDueAt ?? null,
+    }));
+
+    const { error: nextError } = await supabase.from("workflow_approvals").insert(nextRows);
+    if (nextError) return { error: nextError.message };
+
+    await supabase
+      .from("workflow_instances")
+      .update({ current_step_id: nextGate.step.id, current_status: nextGate.step.from_status, status: "active" })
+      .eq("id", instanceId);
+
+    const statusError = await setEntityStatus(approval.entity_type, approval.entity_id, nextGate.step.from_status, user.userId);
+    if (statusError) return { error: statusError };
+
+    await recordApprovalActivity(scope, user, {
+      action: "approve",
+      entityType: approval.entity_type,
+      entityId: approval.entity_id,
+      metadata: { decision: "approved", comment, step: step.step_name, next_step: nextGate.step.step_name, to_status: nextGate.step.from_status },
+    });
+    return { error: null };
+  }
+
+  const targetStatus = step.to_status;
+  await supabase
+    .from("workflow_instances")
+    .update({ status: "completed", completed_at: new Date().toISOString(), entity_updated_status: targetStatus })
+    .eq("id", instanceId);
 
   const statusError = await setEntityStatus(approval.entity_type, approval.entity_id, targetStatus, user.userId, comment ?? undefined);
   if (statusError) return { error: statusError };
 
   await recordApprovalActivity(scope, user, {
-    action: input.decision === "approved" ? "approve" : "reject",
+    action: "approve",
     entityType: approval.entity_type,
     entityId: approval.entity_id,
-    metadata: { decision: input.decision, comment, step: approval.step.step_name, to_status: targetStatus },
+    metadata: { decision: "approved", comment, step: step.step_name, to_status: targetStatus, completed: true },
   });
   return { error: null };
 }
@@ -362,11 +630,14 @@ async function resolveEntityTitles(approvals: PendingApproval[]): Promise<Pendin
 /** Pending approvals this user is allowed to decide. */
 export async function listPendingApprovals(ctx: ApproverContext): Promise<{ data: PendingApproval[]; error: string | null }> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("workflow_approvals")
     .select("*, workflow_steps(*), workflow_definitions(id, module, name, status, plant_id)")
     .eq("status", "pending")
     .order("requested_at", { ascending: false });
+  if (ctx.organizationId) query = query.eq("organization_id", ctx.organizationId);
+  if (ctx.plantId) query = query.eq("plant_id", ctx.plantId);
+  const { data, error } = await query;
 
   if (error) return { data: [], error: error.message };
   const rows = castRows<any>(data);

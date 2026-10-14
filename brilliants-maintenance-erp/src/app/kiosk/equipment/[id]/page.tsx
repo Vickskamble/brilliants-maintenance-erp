@@ -26,17 +26,19 @@ export default function KioskEquipmentHubPage() {
   const equipmentId = params.id;
   const router = useRouter();
   const { user, organization, plant } = useAuth();
-
   const [hub, setHub] = useState<EquipmentHubRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
 
   const load = useCallback(async () => {
-    const row = await getEquipmentHub(equipmentId);
+    const row = await getEquipmentHub(equipmentId, {
+      organizationId: organization?.id ?? null,
+      plantId: plant?.id ?? null,
+    });
     setHub(row);
     setIsLoading(false);
-  }, [equipmentId]);
+  }, [equipmentId, organization?.id, plant?.id]);
 
   useEffect(() => {
     void load();
@@ -70,13 +72,18 @@ export default function KioskEquipmentHubPage() {
   async function handlePmComplete(pm: { id: string; task_type: string | null }) {
     const notes =
       window.prompt(`Notes for ${pm.task_type ?? "PM"} (optional)`, "") ?? null;
+    const minutesInput = window.prompt("Time taken for this PM (minutes, optional)", "");
+    const durationMinutes = minutesInput
+      ? Math.max(0, Number(minutesInput) || 0)
+      : undefined;
     setBusyId(pm.id);
     setMessage(null);
     const { error } = await performPm(
       pm.id,
       notes?.trim() || null,
       { organizationId: organization?.id ?? null, plantId: plant?.id ?? null },
-      { id: user?.id, name: undefined }
+      { id: user?.id, name: undefined },
+      durationMinutes
     );
     setBusyId(null);
     if (error) {
@@ -188,7 +195,9 @@ export default function KioskEquipmentHubPage() {
             const prio = PRIORITY_LEVELS.find((p) => p.value === wo.priority);
             const typeInfo = WORK_ORDER_TYPES.find((t) => t.value === wo.type);
             const isBusy = busyId === wo.id;
-            const canStart = wo.status === "assigned" || wo.status === "on_hold";
+            const canStart = ["submitted", "approved", "assigned", "on_hold"].includes(
+              wo.status
+            );
             const canComplete = wo.status === "in_progress";
             return (
               <div key={wo.id} className="rounded-2xl bg-white p-4 shadow-sm">

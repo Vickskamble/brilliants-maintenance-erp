@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { FREQUENCY_TYPES } from "@/lib/constants";
 import { FormError } from "@/components/ui/form-error";
 import { ArrowLeft, Save } from "lucide-react";
@@ -35,6 +36,7 @@ interface SelectOption {
 export default function MaintenanceNewPage() {
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
 
   const [equipment, setEquipment] = useState<SelectOption[]>([]);
   const [scheduleNo, setScheduleNo] = useState("");
@@ -99,6 +101,8 @@ export default function MaintenanceNewPage() {
     const payload = {
       schedule_no,
       equipment_id: equipmentId || null,
+      organization_id: scope.organizationId ?? null,
+      plant_id: scope.plantId ?? null,
       task_type: taskType || null,
       frequency: frequency || null,
       interval_days: intervalDays ? Number(intervalDays) : null,

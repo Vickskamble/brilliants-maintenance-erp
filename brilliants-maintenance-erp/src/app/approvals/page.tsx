@@ -27,7 +27,7 @@ import {
 import { ShieldCheck, CheckCheck, X, ExternalLink } from "lucide-react";
 
 export default function ApprovalsPage() {
-  const { user, profile, roles, hasPermission } = useAuth();
+  const { user, profile, roles, organization, plant, hasPermission } = useAuth();
   const scope = useQueryScope();
   const [tab, setTab] = useState("pending");
   const [pending, setPending] = useState<PendingApproval[]>([]);
@@ -44,6 +44,8 @@ export default function ApprovalsPage() {
     userId: user.id,
     userName: profile?.name ?? user.email ?? "User",
     roleCodes: roles.map((r) => r.code),
+    organizationId: organization?.id ?? null,
+    plantId: plant?.id ?? null,
     hasPermission,
   };
 

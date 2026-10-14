@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FormError } from "@/components/ui/form-error";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { ArrowLeft, Save } from "lucide-react";
 
 const VENDOR_TYPES = [
@@ -27,6 +28,7 @@ const VENDOR_TYPES = [
 export default function NewVendorPage() {
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
 
   const [vendorCode, setVendorCode] = useState("");
   const [name, setName] = useState("");
@@ -58,6 +60,8 @@ export default function NewVendorPage() {
     const payload = {
       vendor_code: vendorCode.trim(),
       name: name.trim(),
+      organization_id: scope.organizationId ?? null,
+      plant_id: scope.plantId ?? null,
       vendor_type: vendorType || null,
       contact_person: contactPerson || null,
       phone: phone || null,

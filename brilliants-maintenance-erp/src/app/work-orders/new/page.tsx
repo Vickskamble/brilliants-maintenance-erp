@@ -42,7 +42,7 @@ const emptyValues: WorkOrderFormValues = {
 export default function NewWorkOrderPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const [values, setValues] = useState<WorkOrderFormValues>(emptyValues);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,21 +55,26 @@ export default function NewWorkOrderPage() {
   const [allEquipment, setAllEquipment] = useState<
     { id: string; equipment_code: string; equipment_name: string }[]
   >([]);
+  const [users, setUsers] = useState<
+    { id: string; name: string; email: string | null }[]
+  >([]);
 
   useEffect(() => {
     loadRefs();
   }, []);
 
   async function loadRefs() {
-    const [p, e] = await Promise.all([
+    const [p, e, u] = await Promise.all([
       supabase.from("plants").select("id, name").order("name"),
       supabase
         .from("equipment")
         .select("id, equipment_code, equipment_name")
         .order("equipment_code"),
+      supabase.from("profiles").select("id, name, email").order("name"),
     ]);
     if (p.data) setPlants(p.data);
     if (e.data) setAllEquipment(e.data);
+    if (u.data) setUsers(u.data);
     setIsLoadingRefs(false);
   }
 
@@ -98,6 +103,7 @@ export default function NewWorkOrderPage() {
       .from("work_orders")
       .insert({
         ...parsed.data,
+        organization_id: profile?.organization_id ?? null,
         assigned_to: assignedTo,
         created_by: user?.id ?? null,
         assigned_by: assignedTo ? (user?.id ?? null) : null,
@@ -178,12 +184,20 @@ export default function NewWorkOrderPage() {
               </div>
               <div>
                 <Label htmlFor="assigned_to">Assigned To</Label>
-                <Input
+                <Select
                   id="assigned_to"
                   value={values.assigned_to ?? ""}
                   onChange={(e) => update("assigned_to", e.target.value || null)}
-                  placeholder="Technician name or email"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name}
+                      {u.email ? ` — ${u.email}` : ""}
+                    </option>
+                  ))}
+                </Select>
+                <FormError message={errors.assigned_to} />
               </div>
               <div>
                 <Label htmlFor="type">Type</Label>

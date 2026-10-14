@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { ErpGantt } from "@/components/erp/erp-gantt";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import { Plus, CalendarX, LayoutList, GanttChartSquare } from "lucide-react";
 
 interface ShutdownRow {
@@ -65,7 +66,7 @@ export default function ShutdownsPage() {
       ((data as unknown as ShutdownRow[]) ?? []).map((row) => ({
         id: row.id,
         label: row.work_order_no,
-        subtitle: `${row.title} · ${row.plants?.[0]?.name ?? "-"}`,
+        subtitle: `${row.title} · ${rel(row.plants)?.name ?? "-"}`,
         start: row.planned_start,
         end: row.planned_end,
         status: row.status,
@@ -210,7 +211,7 @@ export default function ShutdownsPage() {
                       header: "Plant",
                       render: (row) => (
                         <span className="text-sm text-gray-600">
-                          {row.plants?.[0]?.name ?? "-"}
+                          {rel(row.plants)?.name ?? "-"}
                         </span>
                       ),
                     },

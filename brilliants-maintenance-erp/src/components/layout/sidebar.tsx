@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckSquare,
+  Building2,
+  ShieldCheck,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { countPendingApprovals, type ApproverContext } from "@/services/approvals";
@@ -39,6 +41,8 @@ const SIDEBAR_ITEMS = [
   { label: "Shutdown", href: "/shutdowns", module: "shutdown", action: "view" },
   { label: "Reports", href: "/reports", module: "reports", action: "view" },
   { label: "Approvals", href: "/approvals", module: "approval", action: "view" },
+  { label: "Quality", href: "/quality", module: "documents", action: "view" },
+  { label: "Companies", href: "/settings/companies", module: "organizations", action: "view" },
   { label: "Settings", href: "/settings", module: "settings", action: "view" },
 ];
 
@@ -56,6 +60,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Shutdown: CalendarX,
   Reports: BarChart3,
   Approvals: CheckSquare,
+  Quality: ShieldCheck,
+  Companies: Building2,
   Settings: Settings,
 };
 
@@ -67,7 +73,7 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const { user, profile, roles, permissions, hasPermission } = useAuth();
+  const { user, profile, roles, permissions, organization, plant, hasPermission } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -77,6 +83,8 @@ export function Sidebar({
       userId: user.id,
       userName: profile?.name ?? user.email ?? "User",
       roleCodes: roles.map((r) => r.code),
+      organizationId: organization?.id ?? null,
+      plantId: plant?.id ?? null,
       hasPermission,
     };
     void countPendingApprovals(ctx).then(setPendingCount);

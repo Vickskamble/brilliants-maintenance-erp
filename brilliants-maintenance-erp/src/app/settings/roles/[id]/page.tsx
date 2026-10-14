@@ -13,8 +13,10 @@ import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/context";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { Role, Permission, RolePermission } from "@/types/database";
 import { groupPermissionsByModule } from "@/lib/permissions";
+import { logAuditAction } from "@/services/platform";
 import { Key, Save, Users } from "lucide-react";
 
 export default function RoleDetailPage() {
@@ -22,6 +24,7 @@ export default function RoleDetailPage() {
   const roleId = typeof params.id === "string" ? params.id : "";
   const supabase = createClient();
   const { profile } = useAuth();
+  const scope = useQueryScope();
 
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
@@ -83,6 +86,13 @@ export default function RoleDetailPage() {
 
   async function save() {
     if (!role) return;
+    if (role.system_role) {
+      setMessage({
+        kind: "err",
+        text: "System roles (ADMIN/ENGINEER/VIEWER) are locked. Create a custom role to manage permissions.",
+      });
+      return;
+    }
     setIsSaving(true);
     setMessage(null);
     const existing = new Set(
@@ -92,6 +102,31 @@ export default function RoleDetailPage() {
     const original = new Set((rpRes.data as RolePermission[] | null)?.map((rp) => rp.permission_id) ?? []);
     const toAdd = [...granted].filter((id) => !original.has(id) && existing.has(id));
     const toRemove = [...original].filter((id) => !granted.has(id));
+
+    // Self-lockout guard: never remove every permission view from the
+    // role that grants the caller access to this screen.
+    if (toRemove.length > 0 && profile) {
+      const { data: myRoles } = await supabase
+        .from("user_roles")
+        .select("role_id")
+        .eq("user_id", profile.id);
+      if (myRoles?.some((r) => r.role_id === role.id)) {
+        const removalPerms = toRemove
+          .map((id) => permissions.find((p) => p.id === id))
+          .filter(Boolean) as Permission[];
+        const dropsSettingsView = removalPerms.some(
+          (p) => p.module === "settings" && p.action === "view"
+        );
+        if (dropsSettingsView) {
+          setIsSaving(false);
+          setMessage({
+            kind: "err",
+            text: "You cannot remove the settings view permission from this role while your account holds it — you would lock yourself and others out.",
+          });
+          return;
+        }
+      }
+    }
 
     let error: string | null = null;
     if (toAdd.length > 0) {
@@ -113,6 +148,25 @@ export default function RoleDetailPage() {
         }
       }
     }
+
+    if (!error) {
+      await logAuditAction(
+        scope,
+        {
+          action: "update_role_permissions",
+          entityType: "role",
+          entityId: role.id,
+          entityTitle: role.name,
+          summary: `Updated permissions: ${toAdd.length} added, ${toRemove.length} removed`,
+          metadata: {
+            added_permissions: toAdd,
+            removed_permissions: toRemove,
+          },
+        },
+        { id: profile?.id ?? undefined, name: profile?.name ?? undefined }
+      );
+    }
+
     setIsSaving(false);
     setMessage(
       error

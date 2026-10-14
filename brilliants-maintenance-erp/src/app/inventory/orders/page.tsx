@@ -49,13 +49,15 @@ interface LineItem {
 
 export default function PurchaseOrdersPage() {
   const scope = useQueryScope();
-  const { user, profile, roles, hasPermission } = useAuth();
+  const { user, profile, roles, organization, plant, hasPermission } = useAuth();
 
   const approverCtx: ApproverContext | null = user
     ? {
         userId: user.id,
         userName: profile?.name ?? user.email ?? "User",
         roleCodes: roles.map((r) => r.code),
+        organizationId: organization?.id ?? null,
+        plantId: plant?.id ?? null,
         hasPermission,
       }
     : null;

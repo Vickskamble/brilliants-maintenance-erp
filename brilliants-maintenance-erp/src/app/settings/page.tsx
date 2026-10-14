@@ -4,9 +4,17 @@ import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { Database, Timer, Users, Shield, Building2, Key, Workflow, Activity, FileUp } from "lucide-react";
+import { Database, Timer, Users, Shield, Building2, Key, Workflow, Activity, FileUp, Landmark, Fingerprint } from "lucide-react";
 
 const settingsModules = [
+  {
+    title: "Company Profile",
+    description: "Company details, logo, address and business settings",
+    href: "/settings/organization",
+    icon: Landmark,
+    color: "text-slate-700",
+    bg: "bg-slate-100",
+  },
   {
     title: "Users",
     description: "Manage user accounts and profiles",
@@ -78,6 +86,14 @@ const settingsModules = [
     icon: FileUp,
     color: "text-teal-600",
     bg: "bg-teal-50",
+  },
+  {
+    title: "Single Sign-On",
+    description: "SAML / SSO availability and identity providers",
+    href: "/settings/sso",
+    icon: Fingerprint,
+    color: "text-violet-600",
+    bg: "bg-violet-50",
   },
 ];
 

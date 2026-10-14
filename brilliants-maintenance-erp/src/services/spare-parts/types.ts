@@ -30,6 +30,7 @@ export interface StockMovement {
 }
 
 export interface GetSparePartsParams {
+  organizationId?: string | null;
   plantId?: string;
   category?: string;
   search?: string;
@@ -40,6 +41,7 @@ export interface GetSparePartsParams {
 }
 
 export interface GetStockMovementsParams {
+  organizationId?: string | null;
   partId?: string;
   plantId?: string;
   movementType?: string;

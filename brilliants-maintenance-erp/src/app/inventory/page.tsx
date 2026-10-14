@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import {
   Package,
   AlertTriangle,
@@ -349,10 +350,10 @@ export default function InventoryPage() {
                           </div>
                           <div>
                             <p className="text-sm font-medium text-gray-900">
-                              {m.spare_parts?.[0]?.part_name ?? "Unknown part"}
+                              {rel(m.spare_parts)?.part_name ?? "Unknown part"}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {m.spare_parts?.[0]?.part_code ?? "-"} ·{" "}
+                              {rel(m.spare_parts)?.part_code ?? "-"} ·{" "}
                               {MOVEMENT_LABELS[m.movement_type] ??
                                 m.movement_type}
                             </p>

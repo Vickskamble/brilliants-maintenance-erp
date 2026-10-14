@@ -196,7 +196,7 @@ export default function WorkflowsPage() {
         setFormError(error);
         return;
       }
-      const { error: stepsError } = await replaceWorkflowSteps(editing.id, validSteps);
+      const { error: stepsError } = await replaceWorkflowSteps(scope, editing.id, validSteps);
       setIsSaving(false);
       if (stepsError) {
         setFormError(stepsError);

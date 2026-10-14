@@ -91,6 +91,8 @@ export async function createWorkflowDefinition(
     required_roles: step.required_roles ?? null,
     require_approval: step.require_approval ?? false,
     approval_role_code: step.approval_role_code ?? null,
+    organization_id: scope.organizationId ?? undefined,
+    plant_id: scope.plantId ?? undefined,
   }));
 
   const { error: stepsError } = await supabase.from("workflow_steps").insert(steps);
@@ -114,6 +116,7 @@ export async function updateWorkflowDefinition(
 }
 
 export async function replaceWorkflowSteps(
+  scope: QueryScope,
   definitionId: string,
   steps: Omit<WorkflowStepRow, "id" | "workflow_definition_id">[]
 ): Promise<{ error: string | null }> {
@@ -123,6 +126,8 @@ export async function replaceWorkflowSteps(
 
   const rows = steps.map((step, index) => ({
     workflow_definition_id: definitionId,
+    organization_id: scope.organizationId ?? undefined,
+    plant_id: scope.plantId ?? undefined,
     order_index: step.order_index ?? index,
     step_name: step.step_name,
     from_status: step.from_status,

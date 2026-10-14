@@ -16,6 +16,8 @@ import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { ErpCalendar } from "@/components/erp/erp-calendar";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
+import { rel } from "@/lib/postgrest-rel";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Plus, Search, Wrench, LayoutList, CalendarDays } from "lucide-react";
 
@@ -37,6 +39,7 @@ interface MaintenanceScheduleRowItem {
 export default function MaintenanceSchemesPage() {
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
 
   const [items, setItems] = useState<MaintenanceScheduleRowItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -47,6 +50,7 @@ export default function MaintenanceSchemesPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
   const [status, setStatus] = useState("");
+  const [due, setDue] = useState<"" | "overdue" | "today" | "upcoming">("");
 
   const [view, setView] = useState<"list" | "calendar">("list");
   const [calendarEvents, setCalendarEvents] = useState<
@@ -55,16 +59,52 @@ export default function MaintenanceSchemesPage() {
   const [isCalendarLoading, setIsCalendarLoading] = useState(false);
 
   useEffect(() => {
+    const dueParam = new URLSearchParams(window.location.search).get("due");
+    if (dueParam === "overdue" || dueParam === "today" || dueParam === "upcoming") {
+      setDue(dueParam);
+    }
+  }, []);
+
+  useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, status]);
+  }, [debouncedSearch, status, due]);
 
   useEffect(() => {
     void load();
-  }, [page, debouncedSearch, status]);
+  }, [page, debouncedSearch, status, due]);
 
   useEffect(() => {
     if (view === "calendar") void loadCalendar();
-  }, [view, debouncedSearch, status]);
+  }, [view, debouncedSearch, status, due]);
+
+  function applyDueFilter(query: any) {
+    if (!due) return query;
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    if (due === "overdue") {
+      return query
+        .eq("is_active", true)
+        .lt("next_run_at", now.toISOString());
+    }
+    if (due === "today") {
+      return query
+        .eq("is_active", true)
+        .gte("next_run_at", todayStart.toISOString())
+        .lt("next_run_at", todayEnd.toISOString());
+    }
+    return query
+      .eq("is_active", true)
+      .gte("next_run_at", todayEnd.toISOString())
+      .lt(
+        "next_run_at",
+        new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      );
+  }
 
   async function load() {
     setIsLoading(true);
@@ -92,6 +132,9 @@ export default function MaintenanceSchemesPage() {
       )
       .order("next_run_at", { ascending: true });
 
+    if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+    if (scope.plantId) query = query.eq("plant_id", scope.plantId);
+
     if (status) {
       query =
         status === "active"
@@ -100,9 +143,10 @@ export default function MaintenanceSchemesPage() {
     }
     if (debouncedSearch) {
       query = query.or(
-        `schedule_no.ilike.%${debouncedSearch}%,task_type.ilike.%${debouncedSearch}%`
+        `schedule_no.ilike.%${debouncedSearch}%,task_type.ilike.%${debouncedSearch}%,equipment.equipment_code.ilike.%${debouncedSearch}%,equipment.equipment_name.ilike.%${debouncedSearch}%`
       );
     }
+    query = applyDueFilter(query);
 
     const { data, count } = await query.range(from, to);
     if (data) setItems(data as unknown as MaintenanceScheduleRowItem[]);
@@ -120,12 +164,15 @@ export default function MaintenanceSchemesPage() {
         task_type,
         next_run_at,
         is_active,
-        equipment(equipment_code)
+        equipment(equipment_code, equipment_name)
       `
       )
       .not("next_run_at", "is", null)
       .order("next_run_at", { ascending: true })
       .limit(1000);
+
+    if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+    if (scope.plantId) query = query.eq("plant_id", scope.plantId);
 
     if (status) {
       query =
@@ -138,6 +185,7 @@ export default function MaintenanceSchemesPage() {
         `task_type.ilike.%${debouncedSearch}%,equipment.equipment_code.ilike.%${debouncedSearch}%`
       );
     }
+    query = applyDueFilter(query);
 
     const { data: rows } = await query;
     setCalendarEvents(
@@ -146,12 +194,15 @@ export default function MaintenanceSchemesPage() {
         task_type: string | null;
         next_run_at: string;
         is_active: boolean | null;
-        equipment: { equipment_code: string }[] | null;
+        equipment: {
+          equipment_code: string;
+          equipment_name: string;
+        }[] | null;
       }[]) ?? []).map((row) => ({
         id: row.id,
-        title: `${row.task_type?.replace(/_/g, " ") ?? "PM"} · ${
-          row.equipment?.[0]?.equipment_code ?? "General"
-        }`,
+        title: `${
+          rel(row.equipment)?.equipment_code ?? "General"
+        } · ${rel(row.equipment)?.equipment_name ?? row.task_type?.replace(/_/g, " ") ?? "PM"}`,
         startDate: row.next_run_at,
         active: row.is_active ?? true,
       }))
@@ -191,13 +242,26 @@ export default function MaintenanceSchemesPage() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 placeholder="All statuses"
-                className="md:w-56"
+                className="md:w-52"
                 options={[
                   { value: "active", label: "Active only" },
                   { value: "inactive", label: "Inactive only" },
                 ]}
               />
-            </div>
+              <Select
+                value={due}
+                onChange={(e) =>
+                  setDue(e.target.value as "" | "overdue" | "today" | "upcoming")
+                }
+                placeholder="All due"
+                className="md:w-56"
+                options={[
+                  { value: "overdue", label: "Overdue" },
+                  { value: "today", label: "Due Today" },
+                  { value: "upcoming", label: "Upcoming (30 days)" },
+                ]}
+              />
+              </div>
 
             <div className="flex justify-end border-b border-gray-200 p-3">
               <div className="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5">
@@ -278,11 +342,21 @@ export default function MaintenanceSchemesPage() {
                   {
                     key: "equipment",
                     header: "Equipment",
-                    render: (row) => (
-                      <span className="text-sm text-gray-700">
-                        {row.equipment?.[0]?.equipment_code ?? "-"}
-                      </span>
-                    ),
+                    render: (row) => {
+                      const eq = rel(row.equipment);
+                      return eq ? (
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-gray-900">
+                            {eq.equipment_code}
+                          </p>
+                          <p className="truncate text-xs text-gray-500">
+                            {eq.equipment_name}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-600">-</span>
+                      );
+                    },
                   },
                   {
                     key: "task_type",

@@ -14,6 +14,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import { Plus, ClipboardCheck } from "lucide-react";
 
 interface InspectionRow {
@@ -150,7 +151,7 @@ export default function InspectionsListPage() {
                     header: "Equipment",
                     render: (row) => (
                       <span className="text-sm text-gray-700">
-                        {row.equipment?.[0]?.equipment_code ?? "-"}
+                        {rel(row.equipment)?.equipment_code ?? "-"}
                       </span>
                     ),
                   },
@@ -159,7 +160,7 @@ export default function InspectionsListPage() {
                     header: "Plant",
                     render: (row) => (
                       <span className="text-sm text-gray-600">
-                        {row.plants?.[0]?.name ?? "-"}
+                        {rel(row.plants)?.name ?? "-"}
                       </span>
                     ),
                   },

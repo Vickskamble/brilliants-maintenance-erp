@@ -45,7 +45,9 @@ export default function ChangeWorkOrderStatusPage() {
   }, [id]);
 
   async function load() {
-    const { data } = await supabase.from("work_orders").select("*").eq("id", id).single();
+    let q = supabase.from("work_orders").select("*").eq("id", id);
+    if (scope.organizationId) q = q.eq("organization_id", scope.organizationId);
+    const { data } = await q.single();
     if (data) {
       setWorkOrder(data);
       setStatus(data.status);

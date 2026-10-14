@@ -32,6 +32,7 @@ export default function EditWorkOrderPage() {
   );
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [equipment, setEquipment] = useState<{ id: string; equipment_code: string; equipment_name: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; name: string; email: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -40,10 +41,11 @@ export default function EditWorkOrderPage() {
   }, [id]);
 
   async function load() {
-    const [wo, pl, eq] = await Promise.all([
+    const [wo, pl, eq, u] = await Promise.all([
       supabase.from("work_orders").select("*").eq("id", id).single(),
       supabase.from("plants").select("id, name").order("name"),
       supabase.from("equipment").select("id, equipment_code, equipment_name").order("equipment_code"),
+      supabase.from("profiles").select("id, name, email").order("name"),
     ]);
     if (wo.data) {
       setWorkOrder(wo.data as WorkOrder);
@@ -51,6 +53,7 @@ export default function EditWorkOrderPage() {
     }
     if (pl.data) setPlants(pl.data);
     if (eq.data) setEquipment(eq.data);
+    if (u.data) setUsers(u.data);
     setIsLoading(false);
   }
 
@@ -158,12 +161,19 @@ export default function EditWorkOrderPage() {
               </div>
               <div>
                 <Label htmlFor="assigned_to">Assigned To</Label>
-                <Input
+                <Select
                   id="assigned_to"
                   value={workOrder.assigned_to ?? ""}
                   onChange={(e) => update("assigned_to", e.target.value || (null as never))}
-                  placeholder="Technician name or email"
-                />
+                >
+                  <option value="">Unassigned</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      {u.name}
+                      {u.email ? ` — ${u.email}` : ""}
+                    </option>
+                  ))}
+                </Select>
               </div>
               <div>
                 <Label htmlFor="planned_start">Planned Start</Label>

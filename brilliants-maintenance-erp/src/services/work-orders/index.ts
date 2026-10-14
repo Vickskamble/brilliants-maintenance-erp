@@ -146,6 +146,8 @@ export async function changeWorkOrderStatus(
   if (oldStatus && oldStatus !== newStatus) {
     await supabase.from("work_order_status_history").insert({
       work_order_id: id,
+      organization_id: (data as { organization_id?: string | null })?.organization_id ?? undefined,
+      plant_id: (data as { plant_id?: string | null })?.plant_id ?? undefined,
       old_status: oldStatus,
       new_status: newStatus,
       remarks: remarks || null,

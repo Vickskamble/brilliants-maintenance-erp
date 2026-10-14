@@ -127,6 +127,7 @@ export async function listMaterialRequests(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = supabase.from("material_requests").select(select as any).order("request_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+  if (scope.plantId) query = query.eq("plant_id", scope.plantId);
   const { data, error } = await query;
   if (error) return { data: [], error: error?.message ?? null };
   const rows = castRows<MaterialRequestWithItems>(data);
@@ -181,6 +182,7 @@ export async function createMaterialRequest(
 
   const items = input.items.map((item) => ({
     material_request_id: header.id,
+    organization_id: scope.organizationId ?? undefined,
     spare_part_id: item.spare_part_id,
     quantity_requested: item.quantity_requested,
   }));
@@ -221,6 +223,7 @@ export async function listPurchaseOrders(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = supabase.from("purchase_orders").select(select as any).order("po_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+  if (scope.plantId) query = query.eq("plant_id", scope.plantId);
   const { data, error } = await query;
   if (error) return { data: [], error: error?.message ?? null };
   const rows = castRows<PurchaseOrderWithItems>(data);
@@ -286,6 +289,7 @@ export async function createPurchaseOrder(
 
   const items = input.items.map((item) => ({
     purchase_order_id: header.id,
+    organization_id: scope.organizationId ?? undefined,
     spare_part_id: item.spare_part_id,
     quantity_ordered: item.quantity_ordered,
     unit_price: item.unit_price,
@@ -328,6 +332,7 @@ export async function listGrns(
     .select("*, purchase_orders(po_no, title)" as any)
     .order("grn_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+  if (scope.plantId) query = query.eq("plant_id", scope.plantId);
   const { data, error } = await query;
   return {
     data: castRows<GrnRow & { purchase_orders: { po_no: string; title: string } | null }>(data),
@@ -399,6 +404,7 @@ export async function postGrn(
       .eq("id", item.order_item_id);
     await supabase.from("stock_movements").insert({
       part_id: item.spare_part_id,
+      organization_id: scope.organizationId ?? undefined,
       plant_id: scope.plantId ?? null,
       movement_type: "purchase_in",
       quantity: item.quantity_received,
@@ -532,6 +538,7 @@ export async function getApprovedMaterialRequests(
     .eq("status", "approved")
     .order("request_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+  if (scope.plantId) query = query.eq("plant_id", scope.plantId);
   const { data, error } = await query;
   return {
     data: castRows<{ id: string; request_no: string; title: string }>(data),
@@ -552,6 +559,7 @@ export async function getReceiveablePurchaseOrders(
     .in("status", ["ordered", "partially_received"])
     .order("po_no");
   if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+  if (scope.plantId) query = query.eq("plant_id", scope.plantId);
   const { data, error } = await query;
   if (error) return { data: [], error: error?.message ?? null };
   const rows = castRows<PurchaseOrderWithItems>(data);

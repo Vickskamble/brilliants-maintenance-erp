@@ -13,11 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { FormError } from "@/components/ui/form-error";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/context";
 import { ArrowLeft, Save } from "lucide-react";
 
 export default function NewInspectionPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { profile } = useAuth();
 
   const [plants, setPlants] = useState<{ value: string; label: string }[]>([]);
   const [equipment, setEquipment] = useState<{ value: string; label: string }[]>(
@@ -81,6 +83,7 @@ export default function NewInspectionPage() {
     setIsSaving(true);
     const inspection_no = await generateInspectionNo();
     const payload = {
+      organization_id: profile?.organization_id ?? null,
       inspection_no,
       plant_id: plantId,
       equipment_id: equipmentId,

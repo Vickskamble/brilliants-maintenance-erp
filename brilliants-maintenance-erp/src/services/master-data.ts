@@ -29,7 +29,7 @@ export async function listMasterData(
   scope: QueryScope
 ): Promise<{ data: MasterRow[]; error: string | null }> {
   const supabase = createClient();
-  const select = `${table === "sections" ? "*, departments(name)" : table === "areas" ? "*, sections(name)" : table === "locations" ? "*, areas(name)" : table === "asset_categories" ? "*, asset_categories(name)" : "*"}`;
+  const select = `${table === "sections" ? "*, departments(name)" : table === "areas" ? "*, sections(name)" : table === "locations" ? "*, areas(name)" : "*"}`;
 
   let query = supabase.from(table).select(select).order("name");
   if (ORG_ONLY.includes(table)) {
@@ -53,9 +53,13 @@ export async function createMasterData(
   if (scope.organizationId) payload.organization_id = scope.organizationId;
   if (PLANT_SCOPED.includes(table) && scope.plantId) payload.plant_id = scope.plantId;
 
-  const { error } = await supabase.from(table).insert(payload).select("id");
+  const { data, error } = await supabase
+    .from(table)
+    .insert(payload)
+    .select("id")
+    .single();
   if (error) return { id: null, error: error.message };
-  return { id: null, error: null };
+  return { id: (data?.id as string) ?? null, error: null };
 }
 
 export async function updateMasterData(
@@ -74,25 +78,29 @@ export async function setMasterDataStatus(
   status: "active" | "inactive"
 ): Promise<{ error: string | null }> {
   const supabase = createClient();
+  if (table === "criticality_profiles") {
+    return { error: "This table does not support status changes" };
+  }
   const { error } = await supabase.from(table).update({ status }).eq("id", id);
   return { error: error?.message ?? null };
 }
 
 export async function loadParentOptions(
-  table: MasterTable
+  table: MasterTable,
+  scope?: QueryScope
 ): Promise<{ value: string; label: string }[]> {
   const supabase = createClient();
-  if (table === "sections") {
-    const { data } = await supabase.from("departments").select("id, name").order("name");
-    return (data ?? []).map((row) => ({ value: row.id, label: row.name }));
-  }
-  if (table === "areas") {
-    const { data } = await supabase.from("sections").select("id, name").order("name");
-    return (data ?? []).map((row) => ({ value: row.id, label: row.name }));
-  }
-  if (table === "locations") {
-    const { data } = await supabase.from("areas").select("id, name").order("name");
-    return (data ?? []).map((row) => ({ value: row.id, label: row.name }));
-  }
-  return [];
+  const parentOf =
+    table === "sections"
+      ? ("departments" as const)
+      : table === "areas"
+        ? ("sections" as const)
+        : table === "locations"
+          ? ("areas" as const)
+          : null;
+  if (!parentOf) return [];
+  let query = supabase.from(parentOf).select("id, name").order("name");
+  if (scope?.organizationId) query = query.eq("organization_id", scope.organizationId);
+  const { data } = await query;
+  return (data ?? []).map((row) => ({ value: row.id, label: row.name }));
 }

@@ -56,6 +56,17 @@ body {
   .print-only {
     display: block !important;
   }
+  body.qr-print .erp-shell aside,
+  body.qr-print .erp-shell > div header,
+  body.qr-print .erp-shell main > *:not(.qr-print-sheet) {
+    display: none !important;
+  }
+  .qr-print-sheet {
+    display: block !important;
+  }
+  .qr-print-sheet > div {
+    padding: 12px;
+  }
   .recharts-wrapper,
   .recharts-responsive-container {
     break-inside: avoid;

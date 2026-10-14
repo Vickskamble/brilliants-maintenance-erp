@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/context";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -47,6 +48,7 @@ export default function BreakdownForm({
 }: BreakdownFormProps) {
   const router = useRouter();
   const supabase = createClient();
+  const { profile } = useAuth();
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [equipment, setEquipment] = useState<
     { id: string; equipment_code: string; equipment_name: string }[]
@@ -66,7 +68,9 @@ export default function BreakdownForm({
       downtime_minutes: initialData?.downtime_minutes ?? null,
       root_cause: initialData?.root_cause ?? "",
       action_taken: initialData?.action_taken ?? "",
-      resolution_notes: initialData?.production_impact ?? "",
+      resolution_notes:
+        (initialData as unknown as { resolution_notes?: string | null } | null)
+          ?.resolution_notes ?? "",
     },
   });
 
@@ -91,8 +95,10 @@ export default function BreakdownForm({
     const payload = {
       breakdown_no: values.report_no,
       problem_description: values.title,
+      organization_id: profile?.organization_id ?? null,
       plant_id: values.plant_id,
       equipment_id: values.equipment_id,
+      severity: values.category || null,
       description: values.description || null,
       reported_at: values.reported_at,
       downtime_minutes: values.downtime_minutes ?? null,

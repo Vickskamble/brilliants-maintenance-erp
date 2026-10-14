@@ -4,6 +4,7 @@ import { GetSparePartsParams, GetStockMovementsParams } from "./types";
 export async function getSpareParts(params?: GetSparePartsParams) {
   const supabase = createClient();
   const {
+    organizationId,
     plantId,
     category,
     search,
@@ -17,6 +18,9 @@ export async function getSpareParts(params?: GetSparePartsParams) {
     "*, spare_part_plants!inner(quantity, plant_id)"
   );
 
+  if (organizationId) {
+    query = query.eq("organization_id", organizationId);
+  }
   if (plantId) {
     // Filter parts available in a specific plant
     query = query.filter("spare_part_plants.plant_id", "eq", plantId);
@@ -74,6 +78,7 @@ export async function deleteSparePart(id: string) {
 export async function getStockMovements(params?: GetStockMovementsParams) {
   const supabase = createClient();
   const {
+    organizationId,
     partId,
     plantId,
     movementType,
@@ -83,6 +88,7 @@ export async function getStockMovements(params?: GetStockMovementsParams) {
 
   let query = supabase.from("stock_movements").select("*", { count: "exact" });
 
+  if (organizationId) query = query.eq("organization_id", organizationId);
   if (partId) query = query.eq("part_id", partId);
   if (plantId) query = query.eq("plant_id", plantId);
   if (movementType) query = query.eq("movement_type", movementType);

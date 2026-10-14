@@ -56,7 +56,7 @@ interface LineItem {
 }
 
 export default function MaterialRequestsPage() {
-  const { user, profile, roles, hasPermission } = useAuth();
+  const { user, profile, roles, organization, plant, hasPermission } = useAuth();
   const scope = useQueryScope();
 
   const approverCtx: ApproverContext | null = user

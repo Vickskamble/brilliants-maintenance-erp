@@ -67,6 +67,11 @@ export interface Organization {
   address: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  logo_url: string | null;
+  website: string | null;
+  pincode: string | null;
+  currency: string;
+  tax_id: string | null;
   status: RecordStatus;
   created_at: string;
   updated_at: string;

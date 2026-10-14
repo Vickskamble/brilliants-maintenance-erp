@@ -15,6 +15,7 @@ import {
   Plant,
 } from "@/types/database";
 import { hasPermission } from "@/lib/permissions";
+import { resolveLandingPath } from "@/lib/auth/landing";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -31,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const supabase = createClient();
 
-  const loadUserData = useCallback(async (userId: string) => {
+  const loadUserData = useCallback(async (userId: string): Promise<Role[]> => {
     try {
       const { data: profileData } = await supabase
         .from("profiles")
@@ -41,7 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!profileData) {
         setIsLoading(false);
-        return;
+        return [];
       }
 
       setProfile(profileData);
@@ -77,13 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      let rolesList: Role[] = [];
+
       const { data: userRolesData } = await supabase
         .from("user_roles")
         .select("*, roles(*)")
         .eq("user_id", userId);
 
       if (userRolesData) {
-        const rolesList = userRolesData
+        rolesList = userRolesData
           .map((ur) => ur.roles)
           .filter(Boolean) as unknown as Role[];
         setRoles(rolesList);
@@ -109,8 +112,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       }
+
+      return rolesList;
     } catch (error) {
       console.error("Error loading user data:", error);
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +173,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: error.message };
       }
 
-      router.push("/dashboard");
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        const loadedRoles = await loadUserData(session.user.id);
+        const landing = resolveLandingPath(
+          loadedRoles.map((r) => r.code)
+        );
+        void fetch("/api/auth/login-audit", { method: "POST" }).catch(() => {});
+        router.replace(landing);
+      }
       return {};
     } catch {
       return { error: "An unexpected error occurred" };

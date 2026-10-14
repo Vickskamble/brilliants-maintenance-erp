@@ -48,7 +48,7 @@ interface SparePartRow {
 export default function SparePartsListPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { plant } = useAuth();
+  const { plant, organization } = useAuth();
 
   const [rows, setRows] = useState<SparePartRow[]>([]);
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
@@ -79,6 +79,7 @@ export default function SparePartsListPage() {
         { count: "exact" }
       );
 
+    if (organization?.id) query = query.eq("organization_id", organization.id);
     if (plantId !== "all") query = query.eq("plant_id", plantId);
     if (category !== "all") query = query.eq("category", category);
     if (lowStockOnly) query = query.lt("current_stock", "reorder_level");

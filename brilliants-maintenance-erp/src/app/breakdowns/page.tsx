@@ -15,6 +15,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingPage } from "@/components/common/loading";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { BREAKDOWN_STATUSES } from "@/lib/constants";
 import { Plus, Search, AlertTriangle } from "lucide-react";
@@ -178,7 +179,7 @@ export default function BreakdownsListPage() {
                     header: "Plant",
                     render: (row) => (
                       <span className="text-sm text-gray-600">
-                        {row.plants?.[0]?.name ?? "-"}
+                        {rel(row.plants)?.name ?? "-"}
                       </span>
                     ),
                   },
@@ -187,7 +188,7 @@ export default function BreakdownsListPage() {
                     header: "Equipment",
                     render: (row) => (
                       <span className="text-sm text-gray-600">
-                        {row.equipment?.[0]?.equipment_code ?? "-"}
+                        {rel(row.equipment)?.equipment_code ?? "-"}
                       </span>
                     ),
                   },

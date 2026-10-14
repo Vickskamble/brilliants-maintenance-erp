@@ -31,7 +31,8 @@ import { Equipment, EquipmentComponent } from "@/types/database";
 import { QrCode } from "@/components/equipment/qr-code";
 import { QrLabel } from "@/components/equipment/qr-label";
 import { buildQrPayload } from "@/lib/qrcode";
-import { Pencil, ArrowLeft, MapPin, Cog, Plus, Trash2, Package, Printer } from "lucide-react";
+import { downloadQrPng } from "@/lib/qr-download";
+import { Pencil, ArrowLeft, MapPin, Cog, Plus, Trash2, Package, Printer, Download } from "lucide-react";
 import Link from "next/link";
 
 type EquipmentDetail = Equipment & {
@@ -41,6 +42,7 @@ type EquipmentDetail = Equipment & {
   locations?: { name: string } | null;
   departments?: { name: string } | null;
   sections?: { name: string } | null;
+  areas?: { name: string } | null;
   cost_centers?: { name: string } | null;
 };
 
@@ -264,6 +266,24 @@ export default function EquipmentDetailPage() {
                 <Printer className="mr-2 h-4 w-4" />
                 Print Label
               </Button>
+              <Button
+                variant="outline"
+                className="no-print"
+                onClick={() =>
+                  void downloadQrPng(
+                    equipment.qr_code || buildQrPayload(equipment.id),
+                    `${equipment.equipment_code}-qr.png`,
+                    512,
+                    {
+                      code: equipment.equipment_code,
+                      name: equipment.equipment_name,
+                    }
+                  )
+                }
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download QR
+              </Button>
               <Link href={`/equipment/${equipment.id}/edit`}>
                 <Button variant="outline">
                   <Pencil className="mr-2 h-4 w-4" />
@@ -306,7 +326,7 @@ export default function EquipmentDetailPage() {
                 <MetadataRow label="Plant" value={equipment.plants?.name} />
                 <MetadataRow label="Department" value={equipment.departments?.name} />
                 <MetadataRow label="Section" value={equipment.sections?.name} />
-                <MetadataRow label="Area" value={equipment.sections?.name} />
+                <MetadataRow label="Area" value={equipment.areas?.name} />
                 <MetadataRow label="Location" value={equipment.locations?.name} />
                 <MetadataRow label="Cost Center" value={equipment.cost_centers?.name} />
               </div>

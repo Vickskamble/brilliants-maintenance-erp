@@ -15,6 +15,13 @@ import { useAuth } from "@/lib/auth/context";
 import { Profile, Role } from "@/types/database";
 import { Plus, Search, Users } from "lucide-react";
 import { getInitials } from "@/lib/utils";
+import { PermissionGate } from "@/components/auth/permission-gate";
+import {
+  listRoleBundles,
+  listAllBundleAssignments,
+  assignUserBundle,
+  type RoleBundleWithRoles,
+} from "@/services/qms/bundles";
 
 interface AddUserForm {
   name: string;
@@ -39,19 +46,47 @@ const emptyForm: AddUserForm = {
 export default function UsersPage() {
   const [users, setUsers] = useState<Profile[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [bundles, setBundles] = useState<RoleBundleWithRoles[]>([]);
+  const [bundleByUser, setBundleByUser] = useState<Record<string, string | null>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [form, setForm] = useState<AddUserForm>(emptyForm);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [bundleSavingUserId, setBundleSavingUserId] = useState<string | null>(null);
   const supabase = createClient();
   const { plants } = useAuth();
 
   useEffect(() => {
     loadUsers();
     loadRoles();
+    loadBundles();
   }, []);
+
+  async function loadBundles() {
+    const { data } = await listRoleBundles();
+    setBundles(data);
+    const { data: byUser } = await listAllBundleAssignments();
+    setBundleByUser(byUser);
+  }
+
+  async function handleBundleChange(userId: string, bundleId: string) {
+    setBundleSavingUserId(userId);
+    setMessage(null);
+    const bundle = bundleId || null;
+    const { error } = await assignUserBundle(userId, bundle);
+    setBundleSavingUserId(null);
+    if (error) {
+      setMessage({ kind: "err", text: error });
+      return;
+    }
+    setBundleByUser((m) => ({ ...m, [userId]: bundle }));
+    setMessage({
+      kind: "ok",
+      text: bundle ? "Bundle assigned. Role grants apply on next reload." : "Bundle cleared.",
+    });
+  }
 
   async function loadUsers() {
     const { data, error } = await supabase
@@ -139,10 +174,16 @@ export default function UsersPage() {
           description="Manage user accounts and profiles"
           backHref="/settings"
           action={
-            <Button onClick={openDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
+            <PermissionGate
+              module="settings"
+              action="create"
+              fallback={null}
+            >
+              <Button onClick={openDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add User
+              </Button>
+            </PermissionGate>
           }
         />
 
@@ -186,6 +227,9 @@ export default function UsersPage() {
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                        Role Bundle
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                         Created
                       </th>
                     </tr>
@@ -218,6 +262,23 @@ export default function UsersPage() {
                         </td>
                         <td className="whitespace-nowrap px-6 py-4">
                           <StatusBadge status={user.status} />
+                        </td>
+                        <td className="px-6 py-4">
+                          <PermissionGate module="settings" action="create" fallback={null}>
+                            <select
+                              value={bundleByUser[user.id] ?? ""}
+                              onChange={(e) => handleBundleChange(user.id, e.target.value)}
+                              disabled={bundleSavingUserId === user.id}
+                              className="w-40 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+                            >
+                              <option value="">No bundle</option>
+                              {bundles.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </select>
+                          </PermissionGate>
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                           {new Date(user.created_at).toLocaleDateString("en-IN")}

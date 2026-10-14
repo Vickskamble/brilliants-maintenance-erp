@@ -64,6 +64,14 @@ const statusColors: Record<string, string> = {
   scheduled: "bg-blue-100 text-blue-800",
   overdue: "bg-red-100 text-red-800",
   missed: "bg-orange-100 text-orange-800",
+  effective: "bg-emerald-100 text-emerald-800",
+  superseded: "bg-amber-100 text-amber-800",
+  withdrawn: "bg-gray-100 text-gray-800",
+  open: "bg-yellow-100 text-yellow-800",
+  initiated: "bg-purple-100 text-purple-800",
+  risk_review: "bg-orange-100 text-orange-800",
+  actioned: "bg-teal-100 text-teal-800",
+  implemented: "bg-blue-100 text-blue-800",
 };
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

@@ -25,6 +25,7 @@ import { ApprovalPanel } from "@/components/approvals/approval-panel";
 import { WorkOrder } from "@/types/database";
 import { WORK_ORDER_TYPES, WORK_ORDER_STATUSES, PRIORITY_LEVELS } from "@/lib/constants";
 import { useAuth } from "@/lib/auth/context";
+import { rel } from "@/lib/postgrest-rel";
 import { useQueryScope } from "@/lib/auth/query-scope";
 import { ArrowRight, Send } from "lucide-react";
 import {
@@ -82,7 +83,7 @@ export default function WorkOrderDetailPage() {
   const [hasPendingApproval, setHasPendingApproval] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { user, profile, roles, hasPermission } = useAuth();
+  const { user, profile, roles, organization, plant, hasPermission } = useAuth();
   const scope = useQueryScope();
 
   const approverCtx: ApproverContext | null = user
@@ -90,6 +91,8 @@ export default function WorkOrderDetailPage() {
         userId: user.id,
         userName: profile?.name ?? user.email ?? "User",
         roleCodes: roles.map((r) => r.code),
+        organizationId: organization?.id ?? null,
+        plantId: plant?.id ?? null,
         hasPermission,
       }
     : null;
@@ -122,9 +125,9 @@ export default function WorkOrderDetailPage() {
     if (woRes.data?.created_by) actorIds.add(woRes.data.created_by);
     if (woRes.data?.assigned_by) actorIds.add(woRes.data.assigned_by);
     if (woRes.data?.closed_by) actorIds.add(woRes.data.closed_by);
-    if (historyRes.data?.[0]?.changed_by) {
-      actorIds.add(historyRes.data[0].changed_by);
-    }
+    historyRes.data?.forEach((h) => {
+      if (h.changed_by) actorIds.add(h.changed_by);
+    });
     const nameMap: Record<string, string | null> = {};
     if (actorIds.size > 0) {
       const actorRes = await supabase
@@ -401,14 +404,14 @@ export default function WorkOrderDetailPage() {
                     {spares.map((s) => (
                       <tr key={s.id}>
                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
-                          {s.spare_parts?.[0]?.part_code ?? "-"}
-                          <span className="ml-2 text-gray-500">{s.spare_parts?.[0]?.part_name ?? ""}</span>
+                          {rel(s.spare_parts)?.part_code ?? "-"}
+                          <span className="ml-2 text-gray-500">{rel(s.spare_parts)?.part_name ?? ""}</span>
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm capitalize text-gray-600">
                           {s.movement_type.replace(/_/g, " ")}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-900">
-                          {s.quantity} {s.spare_parts?.[0]?.unit ?? ""}
+                          {s.quantity} {rel(s.spare_parts)?.unit ?? ""}
                         </td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                           {s.reference_no ?? "-"}
@@ -442,6 +445,9 @@ export default function WorkOrderDetailPage() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-600">{formatDateTime(h.changed_at)}</p>
+                      <p className="text-xs font-medium text-gray-500">
+                        {h.changed_by ? `by ${actorNames[h.changed_by] ?? h.changed_by}` : ""}
+                      </p>
                       {h.remarks && <p className="text-xs text-gray-400">{h.remarks}</p>}
                     </div>
                   </div>

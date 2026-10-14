@@ -4,16 +4,21 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { parseQrPayload } from "@/lib/qrcode";
 import { searchEquipment } from "@/services/kiosk";
+import { useAuth } from "@/lib/auth/context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Camera, Loader2, AlertTriangle } from "lucide-react";
 
+type ScannerMode = "loading" | "barcode" | "html5" | "error";
+
+let html5Scanner: { stop: () => Promise<void>; clear: () => void } | null = null;
+
 export default function KioskScanPage() {
   const router = useRouter();
-  const readerRef = useRef<HTMLDivElement | null>(null);
-  const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { organization, plant } = useAuth();
 
-  const [isReady, setIsReady] = useState(false);
+  const [mode, setMode] = useState<ScannerMode>("loading");
   const [scanError, setScanError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -22,26 +27,107 @@ export default function KioskScanPage() {
   >([]);
 
   useEffect(() => {
-    let cancelled = false;
     let disposed = false;
-    async function startScanner() {
+    let handled = false;
+    let interval: number | undefined;
+
+    async function startBarcodeScanner() {
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false,
+        });
+      } catch {
+        if (disposed) return;
+        setMode("error");
+        setScanError("Camera unavailable. Use the code box below instead.");
+        return;
+      }
+      if (disposed) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      const BarcodeDetector = (window as unknown as {
+        BarcodeDetector?: new (opts: { formats: string[] }) => {
+          detect: (v: HTMLVideoElement) => Promise<{ rawValue: string }[]>;
+        };
+      }).BarcodeDetector;
+      if (!BarcodeDetector) {
+        stream.getTracks().forEach((t) => t.stop());
+        void startHtml5Scanner();
+        return;
+      }
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      setMode("barcode");
+      // wait for the <video> element to render before wiring the stream
+      await new Promise((r) => setTimeout(r, 60));
+      if (disposed || !videoRef.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      videoRef.current.srcObject = stream;
+      try {
+        await videoRef.current.play();
+      } catch {
+        /* autoplay may be blocked with sound; video stays muted */
+      }
+      interval = window.setInterval(async () => {
+        if (disposed || handled || !videoRef.current) return;
+        try {
+          const codes = await detector.detect(videoRef.current);
+          for (const code of codes) {
+            const parsed = parseQrPayload(code.rawValue);
+            if (parsed) {
+              handled = true;
+              router.push(`/kiosk/equipment/${parsed.id}`);
+              return;
+            }
+          }
+        } catch {
+          /* decoding frame failed, try next frame */
+        }
+      }, 200);
+    }
+
+    async function startHtml5Scanner() {
+      const container = document.getElementById("kiosk-reader");
+      if (container) container.innerHTML = "";
+      if (html5Scanner) {
+        try {
+          await html5Scanner.stop();
+        } catch {
+          /* ignore */
+        }
+        try {
+          html5Scanner.clear();
+        } catch {
+          /* ignore */
+        }
+        html5Scanner = null;
+      }
+      if (disposed) return;
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
-        if (cancelled || disposed) return;
-        const scanner = new Html5Qrcode("kiosk-reader");
-        scannerRef.current = {
+        if (disposed) return;
+        if (container) container.innerHTML = "";
+        setMode("html5");
+        const scanner = new Html5Qrcode("kiosk-reader", false);
+        html5Scanner = {
           stop: () => scanner.stop(),
           clear: () => scanner.clear(),
         };
-        setIsReady(true);
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 220, height: 220 } },
-          (text) => {
+          (text: string) => {
+            if (disposed || handled) return;
             const parsed = parseQrPayload(text);
             if (parsed) {
-              void scanner.stop();
-              router.push(`/kiosk/equipment/${parsed.id}`);
+              handled = true;
+              void scanner.stop().then(() => {
+                if (!disposed) router.push(`/kiosk/equipment/${parsed.id}`);
+              });
             } else {
               setScanError("Scanned code is not an equipment QR. Try again.");
             }
@@ -49,20 +135,38 @@ export default function KioskScanPage() {
           () => {}
         );
       } catch {
-        if (!cancelled && !disposed) {
+        if (!disposed) {
+          setMode("error");
           setScanError("Camera unavailable. Use the code box below instead.");
         }
       }
     }
 
-    void startScanner();
+    if (typeof window !== "undefined") {
+      void startBarcodeScanner();
+    }
 
     return () => {
-      cancelled = true;
       disposed = true;
-      void scannerRef.current?.stop();
-      scannerRef.current?.clear();
-      scannerRef.current = null;
+      handled = true;
+      if (interval !== undefined) window.clearInterval(interval);
+      const video = videoRef.current;
+      if (video && video.srcObject) {
+        (video.srcObject as MediaStream).getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+      }
+      const scanner = html5Scanner;
+      html5Scanner = null;
+      if (scanner) {
+        void scanner.stop().catch(() => {});
+        try {
+          scanner.clear();
+        } catch {
+          /* ignore */
+        }
+      }
+      const container = document.getElementById("kiosk-reader");
+      if (container) container.innerHTML = "";
     };
   }, [router]);
 
@@ -75,7 +179,10 @@ export default function KioskScanPage() {
       return;
     }
     setIsSearching(true);
-    const found = await searchEquipment(text);
+    const found = await searchEquipment(text, {
+      organizationId: organization?.id ?? null,
+      plantId: plant?.id ?? null,
+    });
     setIsSearching(false);
     setResults(found);
   }
@@ -88,21 +195,34 @@ export default function KioskScanPage() {
           Scan Equipment QR
         </div>
 
-        {isReady ? (
-          <div id="kiosk-reader" ref={readerRef} className="mt-3 overflow-hidden rounded-xl" />
-        ) : (
-          <div className="mt-3 flex h-40 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-400">
-            {scanError ? (
-              <span className="flex items-center gap-2 px-4 text-center">
-                <AlertTriangle className="h-4 w-4" /> {scanError}
-              </span>
-            ) : (
+        <div className="mt-3">
+          {mode === "barcode" && (
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-64 w-full rounded-xl bg-black object-cover"
+            />
+          )}
+          {mode === "html5" && (
+            <div id="kiosk-reader" className="overflow-hidden rounded-xl" />
+          )}
+          {mode === "loading" && (
+            <div className="flex h-40 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-400">
               <span className="flex items-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Starting camera...
               </span>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+          {mode === "error" && (
+            <div className="flex h-40 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 text-sm text-slate-400">
+              <span className="flex items-center gap-2 px-4 text-center">
+                <AlertTriangle className="h-4 w-4" /> {scanError}
+              </span>
+            </div>
+          )}
+        </div>
 
         <div className="mt-4">
           <label

@@ -30,9 +30,19 @@ export async function addSparePartComponent(
   payload: { part_code: string; part_name: string; quantity: number }
 ): Promise<{ data: unknown; error: Error | null }> {
   const supabase = await createClient();
+  const { data: part } = await supabase
+    .from("spare_parts")
+    .select("organization_id, plant_id")
+    .eq("id", sparePartId)
+    .single();
   const { data, error } = await supabase
     .from("spare_part_components")
-    .insert({ spare_part_id: sparePartId, ...payload })
+    .insert({
+      spare_part_id: sparePartId,
+      organization_id: (part as { organization_id?: string | null } | null)?.organization_id ?? undefined,
+      plant_id: (part as { plant_id?: string | null } | null)?.plant_id ?? undefined,
+      ...payload,
+    })
     .select()
     .single();
   return { data, error };

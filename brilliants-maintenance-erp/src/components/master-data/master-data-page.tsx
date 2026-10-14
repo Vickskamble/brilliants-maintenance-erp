@@ -102,7 +102,7 @@ export function MasterDataPage(props: MasterDataPageProps) {
   useEffect(() => {
     void load();
     if (parentField) {
-      void loadParentOptions(table).then(setParents);
+      void loadParentOptions(table, scope).then(setParents);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope.organizationId, scope.plantId]);
