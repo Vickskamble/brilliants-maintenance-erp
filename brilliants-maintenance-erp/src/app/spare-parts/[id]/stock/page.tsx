@@ -15,12 +15,18 @@ import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
 import { useQueryScope } from "@/lib/auth/query-scope";
+import { useAuth } from "@/lib/auth/context";
 import { STOCK_MOVEMENT_TYPES } from "@/lib/constants";
 import { stockMovementSchema } from "@/lib/validation/spare-parts";
 import { SparePart } from "@/types/database";
+import { applyStockMovement } from "@/services/stock-movements";
+import { submitForApproval, type ApproverContext } from "@/services/approvals";
 import { ChevronLeft, Save } from "lucide-react";
 
-type SparePartStock = SparePart & { current_stock?: number | null };
+type SparePartStock = SparePart & {
+  current_stock?: number | null;
+  plant_id?: string | null;
+};
 
 export default function StockMovementPage() {
   const params = useParams();
@@ -28,12 +34,14 @@ export default function StockMovementPage() {
   const router = useRouter();
   const supabase = createClient();
   const scope = useQueryScope();
+  const { user, profile, roles, organization, plant, hasPermission } = useAuth();
 
   const [sparePart, setSparePart] = useState<SparePartStock | null>(null);
   const [plants, setPlants] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({
     movement_type: "purchase_in",
     plant_id: "",
+    adjustment_direction: "add" as "add" | "remove",
     quantity: 1,
     reference_no: "",
     note: "",
@@ -57,53 +65,96 @@ export default function StockMovementPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const parsed = stockMovementSchema.safeParse({ ...form, part_id: id });
+    if (!sparePart) return;
+    const parsed = stockMovementSchema.safeParse({
+      ...form,
+      part_id: id,
+      unit: sparePart.unit ?? "pcs",
+    });
     if (!parsed.success) {
       window.alert(parsed.error.issues[0]?.message ?? "Validation failed");
       return;
     }
+    if (!user) return;
     setIsSaving(true);
 
-    const isIn =
-      form.movement_type === "purchase_in" ||
-      form.movement_type === "return_in" ||
-      form.movement_type === "adjustment" ||
-      form.movement_type.includes("in");
-    const direction = isIn ? 1 : -1;
-
     const mtype = form.movement_type;
-    const plantId = form.plant_id || null;
-    const plantFields =
-      mtype === "purchase_in" ||
-      mtype === "return_in" ||
-      mtype === "adjustment" ||
-      mtype === "transfer"
-        ? { to_plant_id: plantId }
-        : mtype === "workorder_issue" ||
-            mtype === "breakdown_use" ||
-            mtype === "scrap_out"
-          ? { from_plant_id: plantId }
-          : {};
+    const plantId = form.plant_id || sparePart.plant_id || null;
+    const orgId = sparePart.organization_id ?? scope.organizationId ?? null;
 
-    if (sparePart) {
-      await supabase
-        .from("spare_parts")
-        .update({
-          current_stock: Math.max(0, (sparePart.current_stock ?? 0) + direction * form.quantity),
+    let direction = -1;
+    if (mtype === "purchase_in" || mtype === "return_in") direction = 1;
+    else if (mtype === "adjustment")
+      direction = form.adjustment_direction === "remove" ? -1 : 1;
+    const signedQuantity = direction * form.quantity;
+
+    // Adjustments raised by users without approve rights go through the
+    // approval engine; the movement is only applied once approved.
+    if (mtype === "adjustment" && !hasPermission("inventory", "approve")) {
+      const adjustmentNo = `ADJ-${Date.now().toString(36).toUpperCase()}`;
+      const title = `${sparePart.part_code} ${
+        form.adjustment_direction === "remove" ? "-" : "+"
+      }${form.quantity}`;
+      const { data: adjustment, error: insertError } = await supabase
+        .from("stock_adjustments")
+        .insert({
+          organization_id: orgId,
+          plant_id: plantId,
+          adjustment_no: adjustmentNo,
+          title,
+          spare_part_id: id,
+          movement_type: "adjustment",
+          direction: form.adjustment_direction,
+          quantity: form.quantity,
+          reference_no: form.reference_no || null,
+          note: form.note || null,
+          status: "pending",
+          requested_by: user.id,
         })
-        .eq("id", id);
+        .select("id")
+        .single();
+      if (insertError || !adjustment) {
+        setIsSaving(false);
+        window.alert(insertError?.message ?? "Failed to submit adjustment");
+        return;
+      }
+
+      const ctx: ApproverContext = {
+        userId: user.id,
+        userName: profile?.name ?? user.email ?? "User",
+        roleCodes: roles.map((r) => r.code),
+        organizationId: organization?.id ?? null,
+        plantId: plant?.id ?? null,
+        hasPermission,
+      };
+      const res = await submitForApproval(scope, ctx, {
+        entityType: "stock_adjustment",
+        entityId: adjustment.id,
+        toStatus: "pending",
+        fromTitle: title,
+      });
+      setIsSaving(false);
+      if (res.error) {
+        window.alert(res.error);
+        return;
+      }
+      window.alert("Stock adjustment submitted for manager approval.");
+      router.push(`/spare-parts/${id}`);
+      router.refresh();
+      return;
     }
 
-    const { error } = await supabase.from("stock_movements").insert({
-      part_id: id,
-      organization_id: sparePart?.organization_id ?? scope.organizationId ?? null,
-      movement_type: mtype,
-      quantity: form.quantity,
-      plant_id: plantId,
-      ...plantFields,
-      reference_no: form.reference_no || null,
+    const { error } = await applyStockMovement({
+      sparePartId: id,
+      organizationId: orgId,
+      plantId,
+      movementType: mtype,
+      signedQuantity,
+      referenceNo: form.reference_no || null,
       note: form.note || null,
+      createdBy: user.id,
     });
+
     setIsSaving(false);
     if (error) {
       window.alert(error.message);
@@ -166,6 +217,24 @@ export default function StockMovementPage() {
                 ))}
               </Select>
             </div>
+            {form.movement_type === "adjustment" && (
+              <div>
+                <Label htmlFor="adjustment_direction">Adjustment Direction</Label>
+                <Select
+                  id="adjustment_direction"
+                  value={form.adjustment_direction}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      adjustment_direction: e.target.value as "add" | "remove",
+                    })
+                  }
+                >
+                  <option value="add">Increase stock (+)</option>
+                  <option value="remove">Reduce stock (−)</option>
+                </Select>
+              </div>
+            )}
             <div>
               <Label htmlFor="plant_id">Plant</Label>
               <Select

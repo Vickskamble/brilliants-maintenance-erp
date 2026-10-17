@@ -5,7 +5,8 @@
 --
 -- What it creates:
 --   1. One organization + one plant.
---   2. Roles: ADMIN, ENGINEER, VIEWER, QA_OFFICER, QA_MANAGER, DOC_CONTROLLER.
+--   2. Roles: ADMIN, MAINTENANCE_MANAGER, MAINTENANCE_OFFICER, TECHNICIAN,
+--      VIEWER, QA_OFFICER, QA_MANAGER, DOC_CONTROLLER.
 --   3. Permissions (module x action) matching app constants.
 --   4. Role -> permission grants.
 --   5. For the FIRST auth user present, a profile row (id = user id)
@@ -41,7 +42,9 @@ on conflict (id) do nothing;
 insert into public.roles (id, organization_id, code, name, description, system_role)
 values
   ('33333333-3333-3333-3333-333333333331', '11111111-1111-1111-1111-111111111111', 'ADMIN', 'Administrator', 'Full access to all modules', true),
-  ('33333333-3333-3333-3333-333333333332', '11111111-1111-1111-1111-111111111111', 'ENGINEER', 'Maintenance Engineer', 'Create and update records in operating modules', false),
+  ('33333333-3333-3333-3333-333333333332', '11111111-1111-1111-1111-111111111111', 'MAINTENANCE_OFFICER', 'Maintenance Officer', 'Creates and edits maintenance records and submits them for approval', false),
+  ('33333333-3333-3333-3333-333333333337', '11111111-1111-1111-1111-111111111111', 'MAINTENANCE_MANAGER', 'Maintenance Manager', 'Department head: approves all maintenance workflows and manages users and roles', false),
+  ('33333333-3333-3333-3333-333333333338', '11111111-1111-1111-1111-111111111111', 'TECHNICIAN', 'Technician', 'Kiosk execution: raises work orders and breakdowns and completes PM', false),
   ('33333333-3333-3333-3333-333333333333', '11111111-1111-1111-1111-111111111111', 'VIEWER', 'Read Only', 'View-only access across modules', false),
   ('33333333-3333-3333-3333-333333333334', '11111111-1111-1111-1111-111111111111', 'QA_OFFICER', 'QA Officer', 'Quality records, investigations and level-1 review in QMS modules', false),
   ('33333333-3333-3333-3333-333333333335', '11111111-1111-1111-1111-111111111111', 'QA_MANAGER', 'QA Manager', 'Final QA release / sign-off authority across QMS modules', false),
@@ -88,9 +91,33 @@ insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id
 from public.roles r
 cross join public.permissions p
-where r.code = 'ENGINEER'
+where r.code = 'MAINTENANCE_OFFICER'
   and p.module not in ('dashboard', 'organization', 'reports', 'settings', 'documents', 'deviation', 'capa', 'change_control')
-  and p.action <> 'delete'
+  and p.action not in ('delete', 'approve', 'reject')
+on conflict do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r
+cross join public.permissions p
+where r.code = 'MAINTENANCE_MANAGER'
+  and p.module not in ('documents', 'deviation', 'capa', 'change_control', 'organizations')
+on conflict do nothing;
+
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r
+cross join public.permissions p
+where r.code = 'TECHNICIAN'
+  and (
+    (p.module = 'work_order' and p.action in ('view', 'create', 'edit'))
+    or (p.module = 'breakdown' and p.action in ('view', 'create'))
+    or (p.module = 'maintenance' and p.action in ('view', 'create', 'edit'))
+    or (p.module = 'inventory' and p.action = 'view')
+    or (p.module = 'equipment' and p.action = 'view')
+    or (p.module = 'reports' and p.action = 'view')
+    or (p.module = 'dashboard' and p.action = 'view')
+  )
 on conflict do nothing;
 
 insert into public.role_permissions (role_id, permission_id)

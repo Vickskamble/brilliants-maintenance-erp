@@ -38,7 +38,8 @@ import {
   setMaterialRequestStatus,
   type PurchaseOrderWithItems,
 } from "@/services/procurement";
-import { Plus, Search, FileText, Send, CheckCheck, Truck, X, Trash2, Package, ShoppingCart, ClipboardList, ArrowRight } from "lucide-react";
+import { Plus, Search, FileText, Send, CheckCheck, Truck, X, Trash2, Package, ShoppingCart, ClipboardList, ArrowRight, FileDown } from "lucide-react";
+import { downloadPurchaseOrderPdf } from "@/lib/pdf/procurement";
 
 interface LineItem {
   spare_part_id: string;
@@ -442,6 +443,19 @@ export default function PurchaseOrdersPage() {
                         header: "",
                         render: (row) => (
                           <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Download PDF"
+                              onClick={() =>
+                                void downloadPurchaseOrderPdf(row, {
+                                  organizationName: organization?.display_name,
+                                  plantName: plant?.name,
+                                })
+                              }
+                            >
+                              <FileDown className="h-3.5 w-3.5" />
+                            </Button>
                             {row.status === "draft" && (
                               <Button
                                 size="sm"

@@ -89,7 +89,7 @@ export default function RoleDetailPage() {
     if (role.system_role) {
       setMessage({
         kind: "err",
-        text: "System roles (ADMIN/ENGINEER/VIEWER) are locked. Create a custom role to manage permissions.",
+        text: "System roles (ADMIN/VIEWER) are locked. Create a custom role to manage permissions.",
       });
       return;
     }

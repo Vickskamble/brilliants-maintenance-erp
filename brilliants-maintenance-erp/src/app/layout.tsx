@@ -17,7 +17,7 @@ export const metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "BEM Kiosk",
+    title: "BEM ERP",
     statusBarStyle: "black-translucent",
   },
   formatDetection: {

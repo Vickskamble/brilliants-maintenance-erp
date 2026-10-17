@@ -3,10 +3,10 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Brilliants Industrial Maintenance ERP",
-    short_name: "BEM Kiosk",
+    short_name: "BEM ERP",
     description:
       "Complete Digital Management System for Industrial Maintenance & Asset Reliability",
-    start_url: "/kiosk",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     background_color: "#ffffff",

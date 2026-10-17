@@ -41,6 +41,7 @@ import {
   X,
   Trash2,
   Package,
+  FileDown,
 } from "lucide-react";
 import {
   decideApproval,
@@ -48,6 +49,7 @@ import {
   submitForApproval,
   type ApproverContext,
 } from "@/services/approvals";
+import { downloadMaterialRequestPdf } from "@/lib/pdf/procurement";
 
 interface LineItem {
   spare_part_id: string;
@@ -385,6 +387,19 @@ export default function MaterialRequestsPage() {
                         header: "",
                         render: (row) => (
                           <div className="flex items-center justify-end gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              title="Download PDF"
+                              onClick={() =>
+                                void downloadMaterialRequestPdf(row, {
+                                  organizationName: organization?.display_name,
+                                  plantName: plant?.name,
+                                })
+                              }
+                            >
+                              <FileDown className="h-3.5 w-3.5" />
+                            </Button>
                             {row.status === "draft" && (
                               <Button
                                 size="sm"

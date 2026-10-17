@@ -4,6 +4,7 @@ import type { QueryScope } from "@/lib/auth/query-scope";
 import { logAuditAction } from "@/services/platform";
 import { changeWorkOrderStatus } from "@/services/work-orders";
 import { setMaterialRequestStatus, setPurchaseOrderStatus } from "@/services/procurement";
+import { applyStockMovement } from "@/services/stock-movements";
 
 export type ApprovalDecision = "approved" | "rejected";
 
@@ -116,6 +117,9 @@ function entityMeta(
   if (entityType === "purchase_order") {
     return { module: "inventory", table: "purchase_orders", noCol: "po_no", link: () => "/inventory/orders" };
   }
+  if (entityType === "stock_adjustment") {
+    return { module: "inventory", table: "stock_adjustments", noCol: "adjustment_no", link: () => "/inventory" };
+  }
   if (entityType === "document") {
     return { module: "documents", table: "qms_documents", noCol: "doc_code", link: (id) => `/quality/documents/${id}` };
   }
@@ -208,6 +212,50 @@ async function setEntityStatus(entityType: string, entityId: string, status: str
   }
   if (entityType === "purchase_order") {
     return (await setPurchaseOrderStatus(entityId, status)).error;
+  }
+  if (entityType === "stock_adjustment") {
+    const supabase = createClient();
+    if (status === "approved") {
+      const { data: adj } = await supabase
+        .from("stock_adjustments")
+        .select("*")
+        .eq("id", entityId)
+        .single();
+      if (!adj) return "Stock adjustment not found";
+      if (adj.status === "approved") return null;
+      const direction = adj.direction === "remove" ? -1 : 1;
+      const { error: applyError } = await applyStockMovement({
+        sparePartId: adj.spare_part_id,
+        organizationId: adj.organization_id,
+        plantId: adj.plant_id,
+        movementType: "adjustment",
+        signedQuantity: direction * adj.quantity,
+        referenceNo: adj.reference_no,
+        note: adj.note,
+        createdBy: actorId ?? adj.requested_by ?? null,
+      });
+      if (applyError) return applyError.message;
+      const { error } = await supabase
+        .from("stock_adjustments")
+        .update({
+          status: "approved",
+          approved_by: actorId ?? null,
+          decided_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", entityId);
+      return error?.message ?? null;
+    }
+    const { error } = await supabase
+      .from("stock_adjustments")
+      .update({
+        status,
+        approved_by: status === "rejected" ? actorId ?? null : null,
+        decided_at: status === "rejected" ? new Date().toISOString() : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", entityId);
+    return error?.message ?? null;
   }
   const table = QMS_TABLE_BY_ENTITY[entityType];
   if (table) {

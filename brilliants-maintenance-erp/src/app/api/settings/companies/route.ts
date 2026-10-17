@@ -7,7 +7,9 @@ export const dynamic = "force-dynamic";
 const ROLE_TEMPLATE_ORG = "11111111-1111-1111-1111-111111111111";
 const ROLE_TEMPLATES = [
   "ADMIN",
-  "ENGINEER",
+  "MAINTENANCE_MANAGER",
+  "MAINTENANCE_OFFICER",
+  "TECHNICIAN",
   "VIEWER",
   "QA_OFFICER",
   "QA_MANAGER",
@@ -196,7 +198,7 @@ export async function POST(req: NextRequest) {
   const plantRows = insertedPlants.data ?? [];
 
   // -- clone roles from the canonical template org so the new company starts
-  //    with ADMIN / ENGINEER / VIEWER and their permission grants.
+  //    with the standard maintenance + quality roles and their permission grants.
   const rolesByCode = new Map<string, string>();
   for (const templateCode of ROLE_TEMPLATES) {
     const { data: templateRole } = await admin
