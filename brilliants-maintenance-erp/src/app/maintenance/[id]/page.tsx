@@ -14,6 +14,11 @@ import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/context";
 import { performPm } from "@/services/kiosk";
+import { downloadPmSchedulePdf } from "@/lib/pdf/maintenance";
+import {
+  PmCompleteDialog,
+  type PmCompletionValues,
+} from "@/components/maintenance/pm-complete-dialog";
 import {
   ArrowLeft,
   Pause,
@@ -22,6 +27,8 @@ import {
   Clock3,
   CheckCircle2,
   Pencil,
+  FileDown,
+  Printer,
 } from "lucide-react";
 
 interface ScheduleDetail {
@@ -46,7 +53,15 @@ interface RunLogRow {
   completed_at: string;
   notes: string | null;
   duration_minutes: number | null;
-  profiles: { name: string }[] | null;
+  profiles: { name: string } | null;
+}
+
+interface AuditLogRow {
+  id: string;
+  action: string;
+  summary: string | null;
+  user_name: string | null;
+  created_at: string;
 }
 
 export default function MaintenanceDetailPage() {
@@ -57,9 +72,11 @@ export default function MaintenanceDetailPage() {
 
   const [schedule, setSchedule] = useState<ScheduleDetail | null>(null);
   const [runLogs, setRunLogs] = useState<RunLogRow[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLogRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
 
   useEffect(() => {
     void load();
@@ -81,6 +98,14 @@ export default function MaintenanceDetailPage() {
       .order("completed_at", { ascending: false })
       .limit(20);
     if (runs) setRunLogs(runs as unknown as RunLogRow[]);
+    const { data: audits } = await supabase
+      .from("audit_logs")
+      .select("id, action, summary, user_name, created_at")
+      .eq("entity_type", "maintenance_schedule")
+      .eq("entity_id", id)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (audits) setAuditLogs(audits as unknown as AuditLogRow[]);
     setIsLoading(false);
   }
 
@@ -99,29 +124,26 @@ export default function MaintenanceDetailPage() {
     void load();
   }
 
-  async function completePm() {
+  async function completePm(values: PmCompletionValues) {
     if (!schedule) return;
-    const notes = window.prompt("Completion notes (optional)", "") ?? null;
-    const minutesInput = window.prompt("Time taken (minutes, optional)", "");
-    const durationMinutes = minutesInput
-      ? Math.max(0, Number(minutesInput) || 0)
-      : undefined;
     setIsCompleting(true);
     const { error } = await performPm(
       schedule.id,
-      notes?.trim() || null,
+      values.notes,
       {
         organizationId: organization?.id ?? null,
-        plantId: plant?.id ?? null,
+        plantId: null,
       },
       { id: user?.id, name: undefined },
-      durationMinutes
+      values.durationMinutes ?? undefined,
+      values.completedAt
     );
     setIsCompleting(false);
     if (error) {
       window.alert(error);
       return;
     }
+    setShowComplete(false);
     void load();
   }
 
@@ -152,6 +174,32 @@ export default function MaintenanceDetailPage() {
   const isOverdue =
     schedule.next_run_at && new Date(schedule.next_run_at).getTime() < Date.now();
 
+  async function downloadPdf() {
+    if (!schedule) return;
+    const isActive = schedule.is_active ?? true;
+    const state = isOverdue ? "Overdue" : isActive ? "Scheduled" : "Inactive";
+    await downloadPmSchedulePdf(
+      [
+        {
+          schedule_no: schedule.schedule_no,
+          equipment_code: schedule.equipment?.equipment_code ?? "—",
+          equipment_name: schedule.equipment?.equipment_name ?? "",
+          task_type: schedule.task_type,
+          frequency: schedule.frequency,
+          last_run_at: schedule.last_run_at,
+          next_run_at: schedule.next_run_at,
+          assigned_to: schedule.assigned_to,
+          is_active: isActive,
+        },
+      ],
+      {
+        organizationName: organization?.display_name ?? null,
+        plantName: plant?.name ?? null,
+        filterLabel: state,
+      }
+    );
+  }
+
   return (
     <ERPLayout>
       <PageHeader
@@ -164,6 +212,14 @@ export default function MaintenanceDetailPage() {
         } · ${schedule.task_type ?? "task"}`}
         action={
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => void downloadPdf()}>
+              <FileDown className="mr-2 h-4 w-4" />
+              PDF
+            </Button>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print
+            </Button>
             <Link href="/maintenance">
               <Button variant="outline">
                 <ArrowLeft className="mr-2 h-4 w-4" />
@@ -192,9 +248,9 @@ export default function MaintenanceDetailPage() {
                   ? "Pause"
                   : "Resume"}
             </Button>
-            <Button onClick={completePm} disabled={isCompleting}>
+            <Button onClick={() => setShowComplete(true)} disabled={isCompleting}>
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              {isCompleting ? "Completing..." : "Complete PM"}
+              Complete PM
             </Button>
           </div>
         }
@@ -292,7 +348,7 @@ export default function MaintenanceDetailPage() {
                           {new Date(run.completed_at).toLocaleString("en-IN")}
                         </p>
                         <p className="mt-0.5 text-xs text-gray-500">
-                          {run.profiles?.[0]?.name ?? "Unknown"} ·{" "}
+                          {run.profiles?.name ?? "Unknown"} ·{" "}
                           {run.duration_minutes != null
                             ? `${run.duration_minutes} min`
                             : "duration n/a"}
@@ -320,6 +376,53 @@ export default function MaintenanceDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <div className="mt-6">
+        <Card>
+          <CardContent className="p-6">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
+              Audit Trail
+            </h3>
+            {auditLogs.length === 0 ? (
+              <p className="text-sm text-gray-500">No audit entries yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {auditLogs.map((log) => (
+                  <li
+                    key={log.id}
+                    className="flex items-start justify-between gap-4 border-b border-gray-100 pb-3 last:border-0 last:pb-0"
+                  >
+                    <div>
+                      <p className="text-sm font-medium capitalize text-gray-900">
+                        {log.action.replace(/[._]/g, " ")}
+                      </p>
+                      {log.summary && (
+                        <p className="mt-0.5 text-xs text-gray-600">
+                          {log.summary}
+                        </p>
+                      )}
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {log.user_name ?? "System"}
+                      </p>
+                    </div>
+                    <p className="whitespace-nowrap text-xs text-gray-500">
+                      {new Date(log.created_at).toLocaleString("en-IN")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <PmCompleteDialog
+        open={showComplete}
+        onClose={() => setShowComplete(false)}
+        scheduleLabel={schedule.schedule_no}
+        isSubmitting={isCompleting}
+        onConfirm={completePm}
+      />
     </ERPLayout>
   );
 }

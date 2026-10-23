@@ -261,11 +261,16 @@ export async function performPm(
   notes: string | null,
   scope: { organizationId?: string | null; plantId?: string | null },
   user?: { id?: string; name?: string } | null,
-  durationMinutes?: number | null
+  durationMinutes?: number | null,
+  completedAt?: string | null
 ): Promise<{ error: string | null }> {
   const supabase = createClient();
   const now = new Date();
-  const nowIso = now.toISOString();
+  const runAt = completedAt ? new Date(completedAt) : now;
+  if (Number.isNaN(runAt.getTime())) {
+    return { error: "Invalid completion date" };
+  }
+  const nowIso = runAt.toISOString();
   const { data: sched } = await supabase
     .from("maintenance_schedules")
     .select(
@@ -288,11 +293,11 @@ export async function performPm(
   let nextRunIso = nowIso;
   if (sched?.interval_days && sched.interval_days > 0) {
     nextRunIso = new Date(
-      now.getTime() + sched.interval_days * 24 * 60 * 60 * 1000
+      runAt.getTime() + sched.interval_days * 24 * 60 * 60 * 1000
     ).toISOString();
   } else {
     nextRunIso = new Date(
-      now.getTime() + 30 * 24 * 60 * 60 * 1000
+      runAt.getTime() + 30 * 24 * 60 * 60 * 1000
     ).toISOString();
   }
 
@@ -334,7 +339,7 @@ export async function performPm(
     entityType: "maintenance_schedule",
     entityId: scheduleId,
     entityTitle: undefined,
-    summary: notes ? `PM completed via kiosk: ${notes}` : "PM completed via kiosk",
+    summary: notes ? `PM completed: ${notes}` : "PM completed",
     metadata: {
       last_run_at: nowIso,
       next_run_at: nextRunIso,

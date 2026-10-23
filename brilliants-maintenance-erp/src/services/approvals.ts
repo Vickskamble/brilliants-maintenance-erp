@@ -112,7 +112,7 @@ function entityMeta(
     return { module: "work_order", table: "work_orders", noCol: "work_order_no", link: (id) => `/work-orders/${id}` };
   }
   if (entityType === "material_request") {
-    return { module: "inventory", table: "material_requests", noCol: "request_no", link: () => "/inventory/requests" };
+    return { module: "inventory", table: "material_requests", noCol: "request_no", link: (id) => `/inventory/requests/${id}` };
   }
   if (entityType === "purchase_order") {
     return { module: "inventory", table: "purchase_orders", noCol: "po_no", link: () => "/inventory/orders" };
@@ -208,7 +208,26 @@ async function setEntityStatus(entityType: string, entityId: string, status: str
     return error?.message ?? null;
   }
   if (entityType === "material_request") {
-    return (await setMaterialRequestStatus(entityId, status)).error;
+    const result = await setMaterialRequestStatus(entityId, status);
+    if (!result.error && status === "approved") {
+      // Fill quantity_approved = quantity_requested for any line the approver
+      // hasn't overridden, so the PDF "Qty Appr." column and the receive flow
+      // both have a meaningful number.
+      const supabase = createClient();
+      const { data: items } = await supabase
+        .from("material_request_items")
+        .select("id, quantity_requested, quantity_approved")
+        .eq("material_request_id", entityId);
+      for (const item of (items ?? []) as { id: string; quantity_requested: number; quantity_approved: number | null }[]) {
+        if (item.quantity_approved == null) {
+          await supabase
+            .from("material_request_items")
+            .update({ quantity_approved: item.quantity_requested })
+            .eq("id", item.id);
+        }
+      }
+    }
+    return result.error;
   }
   if (entityType === "purchase_order") {
     return (await setPurchaseOrderStatus(entityId, status)).error;
@@ -390,7 +409,11 @@ export function canActOnApproval(
   approval: Pick<ApprovalRow, "requested_by" | "entity_type" | "step">,
   action: "approve" | "reject"
 ): boolean {
-  if (approval.requested_by === ctx.userId) return false;
+  // Self-approval is blocked (segregation of duties), except for the ERP /
+  // platform super admins, who may act on their own requests.
+  const isSuperAdmin =
+    ctx.roleCodes.includes("ADMIN") || ctx.roleCodes.includes("SYSTEM_ADMIN");
+  if (approval.requested_by === ctx.userId && !isSuperAdmin) return false;
   const step = approval.step;
   if (!step) return false;
 
@@ -654,7 +677,7 @@ async function resolveEntityTitles(approvals: PendingApproval[]): Promise<Pendin
     const meta = entityMeta(entityType);
     const { data } = await supabase
       .from(meta.table)
-      .select(`id, ${meta.noCol} as no, title`)
+      .select(`id, no:${meta.noCol}, title`)
       .in("id", [...new Set(ids)]);
     for (const row of (data ?? []) as any[]) {
       titleMap.set(`${entityType}:${row.id}`, { title: row.title ?? "Untitled", no: row.no ?? "" });

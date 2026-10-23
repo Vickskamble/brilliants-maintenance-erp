@@ -42,6 +42,7 @@ import {
   Trash2,
   Package,
   FileDown,
+  Eye,
 } from "lucide-react";
 import {
   decideApproval,
@@ -304,9 +305,12 @@ export default function MaterialRequestsPage() {
                         key: "request_no",
                         header: "Request",
                         render: (row) => (
-                          <span className="font-mono text-sm font-medium text-blue-600">
+                          <Link
+                            href={`/inventory/requests/${row.id}`}
+                            className="font-mono text-sm font-medium text-blue-600 hover:underline"
+                          >
                             {row.request_no}
-                          </span>
+                          </Link>
                         ),
                       },
                       {
@@ -314,9 +318,12 @@ export default function MaterialRequestsPage() {
                         header: "Title",
                         render: (row) => (
                           <div>
-                            <p className="text-sm font-medium text-gray-900">
+                            <Link
+                              href={`/inventory/requests/${row.id}`}
+                              className="text-sm font-medium text-gray-900 hover:underline"
+                            >
                               {row.title}
-                            </p>
+                            </Link>
                             <p className="text-xs text-gray-400">
                               {row.material_request_items.length} item
                               {row.material_request_items.length === 1 ? "" : "s"}
@@ -387,6 +394,11 @@ export default function MaterialRequestsPage() {
                         header: "",
                         render: (row) => (
                           <div className="flex items-center justify-end gap-1">
+                            <Link href={`/inventory/requests/${row.id}`}>
+                              <Button size="sm" variant="ghost" title="View / Print">
+                                <Eye className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
                             <Button
                               size="sm"
                               variant="ghost"

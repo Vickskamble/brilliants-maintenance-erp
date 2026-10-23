@@ -19,7 +19,17 @@ import { createClient } from "@/lib/supabase/client";
 import { useQueryScope } from "@/lib/auth/query-scope";
 import { rel } from "@/lib/postgrest-rel";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { Plus, Search, Wrench, LayoutList, CalendarDays } from "lucide-react";
+import { useAuth } from "@/lib/auth/context";
+import { downloadPmSchedulePdf, type PmSchedulePdfRow } from "@/lib/pdf/maintenance";
+import {
+  Plus,
+  Search,
+  Wrench,
+  LayoutList,
+  CalendarDays,
+  FileDown,
+  Printer,
+} from "lucide-react";
 
 interface MaintenanceScheduleRowItem {
   id: string;
@@ -40,6 +50,7 @@ export default function MaintenanceSchemesPage() {
   const router = useRouter();
   const supabase = createClient();
   const scope = useQueryScope();
+  const { profile, organization, plant } = useAuth();
 
   const [items, setItems] = useState<MaintenanceScheduleRowItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -210,6 +221,73 @@ export default function MaintenanceSchemesPage() {
     setIsCalendarLoading(false);
   }
 
+  const filterLabelMap: Record<string, string> = {
+    overdue: "Overdue",
+    today: "Due Today",
+    upcoming: "Upcoming (30 days)",
+    "": "All schedules",
+  };
+
+  async function downloadPdf() {
+    // Fetch every row matching the current filter (not just this page).
+    let query = supabase
+      .from("maintenance_schedules")
+      .select(
+        `
+        schedule_no,
+        task_type,
+        frequency,
+        last_run_at,
+        next_run_at,
+        assigned_to,
+        is_active,
+        equipment(equipment_code, equipment_name)
+      `
+      )
+      .order("next_run_at", { ascending: true });
+
+    if (scope.organizationId) query = query.eq("organization_id", scope.organizationId);
+    if (scope.plantId) query = query.eq("plant_id", scope.plantId);
+    if (status) {
+      query =
+        status === "active"
+          ? query.eq("is_active", true)
+          : query.eq("is_active", false);
+    }
+    if (debouncedSearch) {
+      query = query.or(
+        `schedule_no.ilike.%${debouncedSearch}%,task_type.ilike.%${debouncedSearch}%,equipment.equipment_code.ilike.%${debouncedSearch}%,equipment.equipment_name.ilike.%${debouncedSearch}%`
+      );
+    }
+    query = applyDueFilter(query);
+    query = query.limit(5000);
+
+    const { data } = await query;
+    const rows: PmSchedulePdfRow[] = (
+      (data as unknown as MaintenanceScheduleRowItem[]) ?? []
+    ).map((r) => ({
+      schedule_no: r.schedule_no,
+      equipment_code: rel(r.equipment)?.equipment_code ?? "—",
+      equipment_name: rel(r.equipment)?.equipment_name ?? "",
+      task_type: r.task_type,
+      frequency: r.frequency,
+      last_run_at: r.last_run_at,
+      next_run_at: r.next_run_at,
+      assigned_to: r.assigned_to,
+      is_active: r.is_active ?? true,
+    }));
+    if (rows.length === 0) {
+      window.alert("No schedules match the current filter.");
+      return;
+    }
+    await downloadPmSchedulePdf(rows, {
+      organizationName: organization?.display_name ?? null,
+      plantName: plant?.name ?? null,
+      filterLabel: filterLabelMap[due] ?? "All schedules",
+      generatedBy: profile?.name ?? null,
+    });
+  }
+
   return (
     <ERPLayout>
       <div className="space-y-6">
@@ -217,12 +295,22 @@ export default function MaintenanceSchemesPage() {
           title="Maintenance Schemes"
           description="Schedule preventive maintenance tasks for your equipment."
           action={
-            <Link href="/maintenance/new">
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Schedule
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => void downloadPdf()}>
+                <FileDown className="mr-2 h-4 w-4" />
+                PDF
               </Button>
-            </Link>
+              <Button variant="outline" onClick={() => window.print()}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+              </Button>
+              <Link href="/maintenance/new">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Schedule
+                </Button>
+              </Link>
+            </div>
           }
         />
 

@@ -6,6 +6,12 @@ import type {
 export interface PdfMeta {
   organizationName?: string | null;
   plantName?: string | null;
+  requesterName?: string | null;
+  requestedAt?: string | null;
+  approvedByName?: string | null;
+  approvedAt?: string | null;
+  receivedByName?: string | null;
+  receivedAt?: string | null;
 }
 
 const MARGIN = 40;
@@ -98,19 +104,34 @@ function ensureSpace(doc: Doc, y: number, needed: number): number {
   return y;
 }
 
-function signatureBlock(doc: Doc, y: number, labels: string[]): void {
-  y = ensureSpace(doc, y, 70);
+function signatureBlock(
+  doc: Doc,
+  y: number,
+  slots: { label: string; name?: string | null; date?: string | null }[]
+): void {
+  y = ensureSpace(doc, y, 90);
   y += 30;
   doc.setDrawColor(209, 213, 219);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(107, 114, 128);
-  const colW = CONTENT_W / labels.length;
-  labels.forEach((label, i) => {
+  const colW = CONTENT_W / slots.length;
+  slots.forEach((slot, i) => {
     const x = MARGIN + colW * i;
+    if (slot.name || slot.date) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(17, 24, 39);
+      doc.text(slot.name || "—", x, y - 10);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      doc.text(slot.date || "", x, y - 1);
+    }
     doc.line(x, y, x + colW - 30, y);
-    doc.text(label, x, y + 12);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(107, 114, 128);
+    doc.text(slot.label, x, y + 12);
   });
+  doc.setTextColor(17, 24, 39);
 }
 
 export async function downloadMaterialRequestPdf(
@@ -181,7 +202,23 @@ export async function downloadMaterialRequestPdf(
     y += 14 + lines.length * 12;
   }
 
-  signatureBlock(doc, y, ["Requested By", "Approved By (Manager)"]);
+  signatureBlock(doc, y, [
+    {
+      label: "Requested By",
+      name: meta.requesterName ?? null,
+      date: fmtDate(mr.created_at),
+    },
+    {
+      label: "Approved By (Manager)",
+      name: meta.approvedByName ?? null,
+      date: meta.approvedAt ? fmtDate(meta.approvedAt) : null,
+    },
+    {
+      label: "Received By",
+      name: meta.receivedByName ?? mr.received_by ?? null,
+      date: mr.received_at ? fmtDate(mr.received_at) : null,
+    },
+  ]);
   doc.save(`${mr.request_no}.pdf`);
 }
 
@@ -256,6 +293,10 @@ export async function downloadPurchaseOrderPdf(
     y += 14 + lines.length * 12;
   }
 
-  signatureBlock(doc, y, ["Prepared By", "Approved By (Manager)", "Vendor"]);
+  signatureBlock(doc, y, [
+    { label: "Prepared By", name: meta.requesterName ?? null, date: fmtDate(po.created_at) },
+    { label: "Approved By (Manager)", name: meta.approvedByName ?? null, date: meta.approvedAt ? fmtDate(meta.approvedAt) : null },
+    { label: "Vendor", name: po.vendors?.name ?? null, date: null },
+  ]);
   doc.save(`${po.po_no}.pdf`);
 }

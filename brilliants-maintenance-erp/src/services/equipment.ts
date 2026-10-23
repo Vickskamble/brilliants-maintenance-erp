@@ -117,7 +117,7 @@ export async function getEquipmentStatusHistory(equipmentId: string): Promise<{
     .from("equipment_status_history")
     .select("*")
     .eq("equipment_id", equipmentId)
-    .order("created_at", { ascending: false });
+    .order("changed_at", { ascending: false });
   return { data, error };
 }
 

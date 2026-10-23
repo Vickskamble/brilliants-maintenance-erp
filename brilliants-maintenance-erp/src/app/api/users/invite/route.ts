@@ -150,27 +150,49 @@ export async function POST(req: NextRequest) {
 
   const { data: existingProfile } = await admin
     .from("profiles")
-    .select("id")
+    .select("id, plant_id")
     .eq("id", authUserId)
     .maybeSingle();
 
-  if (!existingProfile) {
-    const { error: profileError } = await admin.from("profiles").insert({
-      id: authUserId,
-      organization_id: organizationId,
-      plant_id: plant_id || null,
-      employee_code: body.employee_code?.trim() || null,
-      name,
-      email,
-      phone: body.phone?.trim() || null,
-      status: "active",
-    });
-    if (profileError) {
-      return NextResponse.json(
-        { error: `Account created but profile failed: ${profileError.message}` },
-        { status: 500 }
-      );
-    }
+  // NOTE: the `on_auth_user_created` trigger already inserts a profile row
+  // (id/name/email/phone only) the moment the auth account is created above.
+  // So an "existing" profile here is almost always that blank row — we must
+  // still stamp the caller's organization + chosen plant onto it, otherwise
+  // RLS resolves app_current_org_id() to '' and the user sees no menu/data.
+  const profileError = existingProfile
+    ? (
+        await admin
+          .from("profiles")
+          .update({
+            organization_id: organizationId,
+            plant_id: plant_id || existingProfile.plant_id || null,
+            name,
+            email,
+            ...(body.employee_code?.trim()
+              ? { employee_code: body.employee_code.trim() }
+              : {}),
+            ...(body.phone?.trim() ? { phone: body.phone.trim() } : {}),
+          })
+          .eq("id", authUserId)
+      ).error
+    : (
+        await admin.from("profiles").insert({
+          id: authUserId,
+          organization_id: organizationId,
+          plant_id: plant_id || null,
+          employee_code: body.employee_code?.trim() || null,
+          name,
+          email,
+          phone: body.phone?.trim() || null,
+          status: "active",
+        })
+      ).error;
+
+  if (profileError) {
+    return NextResponse.json(
+      { error: `Account created but profile failed: ${profileError.message}` },
+      { status: 500 }
+    );
   }
 
   const { data: existingRole } = await admin

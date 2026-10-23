@@ -360,10 +360,11 @@ export const REQUEST_PRIORITIES = [
 
 export const MATERIAL_REQUEST_STATUSES = [
   { value: "draft", label: "Draft", color: "text-gray-600 bg-gray-50" },
-  { value: "submitted", label: "Submitted", color: "text-blue-600 bg-blue-50" },
-  { value: "approved", label: "Approved", color: "text-green-600 bg-green-50" },
-  { value: "rejected", label: "Rejected", color: "text-red-600 bg-red-50" },
-  { value: "ordered", label: "Ordered", color: "text-orange-600 bg-orange-50" },
+  { value: "submitted", label: "Submitted", color: "text-blue-600 bg-gray-50" },
+  { value: "approved", label: "Approved", color: "text-green-600 bg-gray-50" },
+  { value: "rejected", label: "Rejected", color: "text-red-600 bg-gray-50" },
+  { value: "ordered", label: "Ordered", color: "text-orange-600 bg-gray-50" },
+  { value: "partially_received", label: "Partially Received", color: "text-yellow-600 bg-yellow-50" },
   { value: "received", label: "Received", color: "text-teal-600 bg-teal-50" },
 ] as const;
 

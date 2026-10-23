@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { QueryScope } from "@/lib/auth/query-scope";
+import { applyStockMovement } from "@/services/stock-movements";
+import { logAuditAction } from "@/services/platform";
 
 export interface MaterialRequestRow {
   id: string;
@@ -11,6 +13,8 @@ export interface MaterialRequestRow {
   priority: string;
   status: string;
   remarks: string | null;
+  received_at: string | null;
+  received_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -21,6 +25,7 @@ export interface MaterialRequestWithItems extends MaterialRequestRow {
     spare_part_id: string;
     quantity_requested: number;
     quantity_approved: number | null;
+    quantity_received: number;
     spare_parts: { part_code: string; part_name: string; unit: string } | null;
   }[];
 }
@@ -214,6 +219,138 @@ export async function deleteMaterialRequest(id: string): Promise<{ error: string
   return { error: error?.message ?? null };
 }
 
+export async function getMaterialRequestById(
+  id: string
+): Promise<{ data: MaterialRequestWithItems | null; error: string | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("material_requests")
+    .select("*, material_request_items(*)")
+    .eq("id", id)
+    .single();
+  if (error) return { data: null, error: error.message };
+  const row = data as MaterialRequestWithItems;
+  const partMap = await loadPartMap(row.material_request_items.map((i) => i.spare_part_id));
+  row.material_request_items = row.material_request_items.map((item) => ({
+    ...item,
+    spare_parts: partMap.get(item.spare_part_id) ?? null,
+  }));
+  return { data: row, error: null };
+}
+
+/**
+ * Direct material receive against an approved material request (no PO).
+ * Each line chooses its own direction:
+ *   "in"  -> purchase_in  (stock increases, plant-auto-synced by trigger)
+ *   "out" -> mr_issue     (stock decreases to the requesting department)
+ * Stock is updated by the DB triggers via applyStockMovement — never manually.
+ */
+export async function receiveMaterialRequest(
+  scope: QueryScope,
+  input: {
+    materialRequestId: string;
+    receivedBy: string;
+    items: {
+      item_id: string;
+      spare_part_id: string;
+      quantity_received: number;
+      direction: "in" | "out";
+      note?: string | null;
+    }[];
+  }
+): Promise<{ error: string | null }> {
+  const supabase = createClient();
+
+  const { data: mr, error: mrError } = await supabase
+    .from("material_requests")
+    .select("id, request_no, status")
+    .eq("id", input.materialRequestId)
+    .single();
+  if (mrError || !mr) return { error: mrError?.message ?? "Material request not found" };
+  if (!["approved", "ordered", "partially_received"].includes(mr.status)) {
+    return { error: `Cannot receive against a request in status "${mr.status}"` };
+  }
+  if (input.items.length === 0) return { error: "No items to receive" };
+
+  for (const item of input.items) {
+    if (item.quantity_received <= 0) continue;
+    const movementType = item.direction === "in" ? "purchase_in" : "mr_issue";
+    const signedQty =
+      item.direction === "in" ? item.quantity_received : -item.quantity_received;
+    const { error: mvErr } = await applyStockMovement({
+      sparePartId: item.spare_part_id,
+      organizationId: scope.organizationId ?? null,
+      plantId: scope.plantId ?? null,
+      movementType,
+      signedQuantity: signedQty,
+      referenceNo: mr.request_no,
+      note:
+        item.note ??
+        `MR ${mr.request_no} direct receive (${item.direction === "in" ? "in" : "out"})`,
+      createdBy: input.receivedBy,
+    });
+    if (mvErr) return { error: mvErr.message };
+
+    const { data: curItem } = await supabase
+      .from("material_request_items")
+      .select("quantity_received")
+      .eq("id", item.item_id)
+      .single();
+    await supabase
+      .from("material_request_items")
+      .update({
+        quantity_received:
+          (curItem?.quantity_received ?? 0) +
+          (item.direction === "in" ? item.quantity_received : item.quantity_received),
+      })
+      .eq("id", item.item_id);
+  }
+
+  // Decide final status: all lines fully received?
+  const { data: allItems } = await supabase
+    .from("material_request_items")
+    .select("quantity_approved, quantity_received")
+    .eq("material_request_id", input.materialRequestId);
+  const rows = castRows<{ quantity_approved: number | null; quantity_received: number }>(allItems);
+  const allReceived =
+    rows.length > 0 &&
+    rows.every((i) => (i.quantity_received ?? 0) >= (i.quantity_approved ?? 0));
+  const anyReceived = rows.some((i) => (i.quantity_received ?? 0) > 0);
+
+  const finalStatus = allReceived
+    ? "received"
+    : anyReceived
+      ? "partially_received"
+      : "approved";
+
+  const { error: updErr } = await supabase
+    .from("material_requests")
+    .update({
+      status: finalStatus,
+      ...(finalStatus === "received"
+        ? { received_at: new Date().toISOString(), received_by: input.receivedBy }
+        : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", input.materialRequestId);
+  if (updErr) return { error: updErr.message };
+
+  await logAuditAction(
+    scope,
+    {
+      action: "receive",
+      entityType: "material_request",
+      entityId: input.materialRequestId,
+      entityTitle: mr.request_no,
+      summary: `Direct material receive -> ${finalStatus}`,
+      metadata: { to_status: finalStatus, item_count: input.items.length },
+    },
+    { id: input.receivedBy }
+  );
+
+  return { error: null };
+}
+
 export async function listPurchaseOrders(
   scope: QueryScope
 ): Promise<{ data: PurchaseOrderWithItems[]; error: string | null }> {
@@ -353,7 +490,7 @@ export async function postGrn(
 
   const { data: poData, error: poError } = await supabase
     .from("purchase_orders")
-    .select("po_no")
+    .select("po_no, material_request_id")
     .eq("id", input.purchase_order_id)
     .single();
   if (poError || !poData) return { error: poError?.message ?? "Purchase order not found" };
@@ -411,16 +548,11 @@ export async function postGrn(
       reference_no: grnNo,
       note: `GRN ${grnNo} / PO ${poData.po_no}`,
       created_by: input.receivedBy,
+      material_request_id: poData.material_request_id ?? null,
     });
-    const { data: part } = await supabase
-      .from("spare_parts")
-      .select("current_stock")
-      .eq("id", item.spare_part_id)
-      .single();
-    await supabase
-      .from("spare_parts")
-      .update({ current_stock: (part?.current_stock ?? 0) + item.quantity_received })
-      .eq("id", item.spare_part_id);
+    // NOTE: spare_parts.current_stock is maintained by the
+    // trg_sync_spare_part_stock DB trigger on stock_movements inserts —
+    // do NOT update it manually here (was double counting).
     if (newReceived < orderItem.quantity_ordered) allReceived = false;
   }
 
@@ -431,6 +563,36 @@ export async function postGrn(
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.purchase_order_id);
+
+  // Propagate to the parent material request: mark it received / partially
+  // received once its linked PO has been fulfilled.
+  if (poData.material_request_id) {
+    const { data: mrItems } = await supabase
+      .from("material_request_items")
+      .select("quantity_approved, quantity_received")
+      .eq("material_request_id", poData.material_request_id);
+    const items = castRows<{ quantity_approved: number | null; quantity_received: number }>(mrItems);
+    const allMrReceived =
+      items.length > 0 &&
+      items.every((i) => (i.quantity_received ?? 0) >= (i.quantity_approved ?? i.quantity_received ?? 0));
+    const anyMrReceived = items.some((i) => (i.quantity_received ?? 0) > 0);
+    if (allMrReceived) {
+      await supabase
+        .from("material_requests")
+        .update({
+          status: "received",
+          received_at: new Date().toISOString(),
+          received_by: input.receivedBy,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", poData.material_request_id);
+    } else if (anyMrReceived) {
+      await supabase
+        .from("material_requests")
+        .update({ status: "partially_received", updated_at: new Date().toISOString() })
+        .eq("id", poData.material_request_id);
+    }
+  }
 
   return { error: null };
 }

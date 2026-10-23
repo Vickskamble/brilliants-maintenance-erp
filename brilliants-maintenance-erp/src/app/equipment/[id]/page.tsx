@@ -18,6 +18,7 @@ import { ERPQuickAdd } from "@/components/erp/erp-quick-add";
 import { ERPLineItemTable } from "@/components/erp/erp-line-item-table";
 import { ERPActivityTimeline } from "@/components/erp/erp-activity-timeline";
 import { createClient } from "@/lib/supabase/client";
+import { rel } from "@/lib/postgrest-rel";
 import { MetadataRow } from "@/components/common/metadata-row";
 import { AttachmentPanel } from "@/components/platform/attachment-panel";
 import {
@@ -62,6 +63,7 @@ interface WorkOrderRow {
   priority: string;
   status: string;
   planned_start: string | null;
+  created_at: string | null;
 }
 
 interface BreakdownRow {
@@ -79,6 +81,7 @@ interface InspectionRow {
   overall_result: string | null;
   scheduled_date: string | null;
   performed_at: string | null;
+  created_at: string | null;
 }
 
 interface CalibrationRow {
@@ -89,6 +92,33 @@ interface CalibrationRow {
   last_run_at: string | null;
   next_run_at: string | null;
   is_active: boolean | null;
+}
+
+interface PmRunRow {
+  id: string;
+  completed_at: string;
+  notes: string | null;
+  duration_minutes: number | null;
+  profiles: { name: string } | null;
+}
+
+interface StockMovementRow {
+  id: string;
+  movement_type: string;
+  quantity: number;
+  reference_no: string | null;
+  created_at: string;
+  spare_parts: { part_code: string; part_name: string; unit: string }[] | null;
+}
+
+interface AuditLogRow {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_title: string | null;
+  summary: string | null;
+  user_name: string | null;
+  created_at: string;
 }
 
 export default function EquipmentDetailPage() {
@@ -106,6 +136,10 @@ export default function EquipmentDetailPage() {
   const [breakdowns, setBreakdowns] = useState<BreakdownRow[]>([]);
   const [inspections, setInspections] = useState<InspectionRow[]>([]);
   const [calibrations, setCalibrations] = useState<CalibrationRow[]>([]);
+  const [pmSchedules, setPmSchedules] = useState<CalibrationRow[]>([]);
+  const [pmRuns, setPmRuns] = useState<PmRunRow[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovementRow[]>([]);
+  const [equipmentAuditLogs, setEquipmentAuditLogs] = useState<AuditLogRow[]>([]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSavingComponent, setIsSavingComponent] = useState(false);
@@ -119,41 +153,108 @@ export default function EquipmentDetailPage() {
 
   async function load() {
     setIsLoading(true);
-    const [eqRes, compRes, histRes, woRes, bdRes, inspRes, calRes] = await Promise.all([
-      getEquipment(id),
-      getEquipmentComponents(id),
-      getEquipmentStatusHistory(id),
-      supabase
-        .from("work_orders")
-        .select(
-          "id, work_order_no, title, type, priority, status, planned_start"
-        )
-        .eq("equipment_id", id)
-        .order("work_order_no"),
-      supabase
-        .from("breakdowns")
-        .select("id, breakdown_no, severity, status, reported_at")
-        .eq("equipment_id", id)
-        .order("reported_at", { ascending: false }),
-      supabase
-        .from("inspections")
-        .select("id, inspection_no, status, overall_result, scheduled_date, performed_at")
-        .eq("equipment_id", id)
-        .order("scheduled_date", { ascending: false }),
-      supabase
-        .from("maintenance_schedules")
-        .select("id, schedule_no, task_type, frequency, last_run_at, next_run_at, is_active")
-        .eq("equipment_id", id)
-        .eq("task_type", "calibration")
-        .order("next_run_at", { ascending: true }),
-    ]);
+    const [eqRes, compRes, histRes, woRes, bdRes, inspRes, schedRes, runRes, auditRes] =
+      await Promise.all([
+        getEquipment(id),
+        getEquipmentComponents(id),
+        getEquipmentStatusHistory(id),
+        supabase
+          .from("work_orders")
+          .select(
+            "id, work_order_no, title, type, priority, status, planned_start, created_at"
+          )
+          .eq("equipment_id", id)
+          .order("work_order_no"),
+        supabase
+          .from("breakdowns")
+          .select("id, breakdown_no, severity, status, reported_at")
+          .eq("equipment_id", id)
+          .order("reported_at", { ascending: false }),
+        supabase
+          .from("inspections")
+          .select("id, inspection_no, status, overall_result, scheduled_date, performed_at, created_at")
+          .eq("equipment_id", id)
+          .order("scheduled_date", { ascending: false }),
+        supabase
+          .from("maintenance_schedules")
+          .select("id, schedule_no, task_type, frequency, last_run_at, next_run_at, is_active")
+          .eq("equipment_id", id)
+          .order("next_run_at", { ascending: true }),
+        supabase
+          .from("maintenance_run_logs")
+          .select("id, completed_at, notes, duration_minutes, profiles:completed_by(name)")
+          .eq("equipment_id", id)
+          .order("completed_at", { ascending: false })
+          .limit(200),
+        supabase
+          .from("audit_logs")
+          .select("id, action, entity_type, entity_title, summary, user_name, created_at")
+          .eq("entity_type", "equipment")
+          .eq("entity_id", id)
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
     if (eqRes.data) setEquipment(eqRes.data as unknown as EquipmentDetail);
     if (compRes.data) setComponents(compRes.data as unknown as EquipmentComponent[]);
     if (histRes.data) setHistory(histRes.data as unknown as StatusHistoryRow[]);
     if (woRes.data) setWorkOrders(woRes.data as unknown as WorkOrderRow[]);
     if (bdRes.data) setBreakdowns(bdRes.data as unknown as BreakdownRow[]);
     if (inspRes.data) setInspections(inspRes.data as unknown as InspectionRow[]);
-    if (calRes.data) setCalibrations(calRes.data as unknown as CalibrationRow[]);
+    const schedules = (schedRes.data ?? []) as unknown as CalibrationRow[];
+    setPmSchedules(schedules);
+    setCalibrations(schedules.filter((s) => s.task_type === "calibration"));
+    if (runRes.data) setPmRuns(runRes.data as unknown as PmRunRow[]);
+
+    // Audit trail is recorded against the equipment itself, but also against
+    // its maintenance schedules (PM completion) and work orders. Pull all of
+    // them so the equipment timeline is complete.
+    const woIds = ((woRes.data ?? []) as unknown as WorkOrderRow[]).map((w) => w.id);
+    const schedIds = schedules.map((s) => s.id);
+    const auditParts: AuditLogRow[] = [...((auditRes.data ?? []) as unknown as AuditLogRow[])];
+
+    if (schedIds.length > 0) {
+      const { data } = await supabase
+        .from("audit_logs")
+        .select("id, action, entity_type, entity_title, summary, user_name, created_at")
+        .eq("entity_type", "maintenance_schedule")
+        .in("entity_id", schedIds)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (data) auditParts.push(...(data as unknown as AuditLogRow[]));
+    }
+
+    if (woIds.length > 0) {
+      const { data } = await supabase
+        .from("audit_logs")
+        .select("id, action, entity_type, entity_title, summary, user_name, created_at")
+        .eq("entity_type", "work_order")
+        .in("entity_id", woIds)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (data) auditParts.push(...(data as unknown as AuditLogRow[]));
+    }
+
+    const seenAudit = new Set<string>();
+    setEquipmentAuditLogs(
+      auditParts.filter((a) => (seenAudit.has(a.id) ? false : seenAudit.add(a.id)))
+    );
+
+    // Spare-part movements are linked via work orders (stock_movements has no
+    // direct equipment_id), so resolve the equipment's WOs first.
+    if (woIds.length > 0) {
+      const { data: mv } = await supabase
+        .from("stock_movements")
+        .select(
+          "id, movement_type, quantity, reference_no, created_at, spare_parts(part_code, part_name, unit)"
+        )
+        .in("work_order_id", woIds)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      setStockMovements((mv ?? []) as unknown as StockMovementRow[]);
+    } else {
+      setStockMovements([]);
+    }
+
     setIsLoading(false);
   }
 
@@ -248,6 +349,72 @@ export default function EquipmentDetailPage() {
     { key: "cost", label: "Cost" },
     { key: "history", label: "History" },
   ];
+
+  // Unified, chronological audit trail for this equipment: status changes,
+  // completed PM runs, work orders, breakdowns, inspections and audit log
+  // entries — newest first.
+  const timelineItems = [
+    ...history.map((h) => ({
+      id: `status-${h.id}`,
+      timestamp: h.changed_at,
+      title: (
+        <span className="flex items-center gap-2">
+          <StatusBadge status={h.old_status ?? "n/a"} />
+          <span className="text-gray-400">→</span>
+          <StatusBadge status={h.new_status} />
+        </span>
+      ),
+      description: h.reason ? `Status change · ${h.reason}` : "Equipment status changed",
+    })),
+    ...pmRuns.map((r) => ({
+      id: `pm-${r.id}`,
+      timestamp: r.completed_at,
+      title: <span className="font-medium text-gray-900">PM completed</span>,
+      description: `${r.profiles?.name ?? "Unknown"}${
+        r.duration_minutes != null ? ` · ${r.duration_minutes} min` : ""
+      }${r.notes ? ` · ${r.notes}` : ""}`,
+    })),
+    ...workOrders.map((w) => ({
+      id: `wo-${w.id}`,
+      timestamp: w.planned_start ?? w.created_at ?? "",
+      title: (
+        <span>
+          Work order <span className="font-mono">{w.work_order_no}</span>
+        </span>
+      ),
+      description: `${w.title} · ${w.type.replace(/_/g, " ")} · ${w.status.replace(/_/g, " ")}`,
+    })),
+    ...breakdowns.map((b) => ({
+      id: `bd-${b.id}`,
+      timestamp: b.reported_at,
+      title: (
+        <span>
+          Breakdown <span className="font-mono">{b.breakdown_no}</span>
+        </span>
+      ),
+      description: `${b.severity?.replace(/_/g, " ") ?? "—"} · ${b.status.replace(/_/g, " ")}`,
+    })),
+    ...inspections.map((i) => ({
+      id: `insp-${i.id}`,
+      timestamp: i.performed_at ?? i.scheduled_date ?? i.created_at ?? "",
+      title: (
+        <span>
+          Inspection <span className="font-mono">{i.inspection_no}</span>
+        </span>
+      ),
+      description: `${i.status.replace(/_/g, " ")} · ${i.overall_result?.replace(/_/g, " ") ?? "pending"}`,
+    })),
+    ...equipmentAuditLogs.map((a) => ({
+      id: `audit-${a.id}`,
+      timestamp: a.created_at,
+      title: <span className="capitalize">{a.action.replace(/[._]/g, " ")}</span>,
+      description: `${a.user_name ?? "System"}${a.summary ? ` · ${a.summary}` : ""}`,
+    })),
+  ]
+    .filter((x) => x.timestamp)
+    .sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
 
   return (
     <ERPLayout>
@@ -507,24 +674,84 @@ export default function EquipmentDetailPage() {
         )}
 
         {activeTab === "maintenance" && (
-          <Card>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <div>
-                  <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Installation Date</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.installation_date)}</p>
+          <div className="space-y-6">
+            <Card>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                  <div>
+                    <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Installation Date</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.installation_date)}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Commissioning Date</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.commissioning_date)}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Warranty Ends</label>
+                    <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.warranty_end)}</p>
+                  </div>
                 </div>
-                <div>
-                  <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Commissioning Date</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.commissioning_date)}</p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium uppercase tracking-wider text-gray-500">Warranty Ends</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(equipment.warranty_end)}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-900">
+                Maintenance Schedules ({pmSchedules.length})
+              </h3>
+              <LinkTable
+                emptyTitle="No maintenance schedules"
+                emptyDescription="Schedules for this equipment will appear here."
+                columns={["Schedule", "Task", "Frequency", "Last Run", "Next Run", "Status"]}
+                rows={pmSchedules.map((c) => ({
+                  id: c.id,
+                  href: `/maintenance/${c.id}`,
+                  cells: [
+                    <span key="no" className="font-mono text-sm font-medium text-gray-900">{c.schedule_no ?? "-"}</span>,
+                    <span key="task" className="text-sm capitalize text-gray-600">{c.task_type?.replace(/_/g, " ") ?? "-"}</span>,
+                    <span key="freq" className="text-sm capitalize text-gray-500">{c.frequency?.replace(/_/g, " ") ?? "-"}</span>,
+                    <span key="last" className="text-sm text-gray-500">{formatDate(c.last_run_at)}</span>,
+                    <span key="next" className="text-sm text-gray-500">{formatDate(c.next_run_at)}</span>,
+                    c.is_active ? <Badge key="act" variant="success">Active</Badge> : <Badge key="act" variant="default">Inactive</Badge>,
+                  ],
+                }))}
+              />
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-900">
+                PM Run History ({pmRuns.length})
+              </h3>
+              <Card>
+                <CardContent className="p-0">
+                  {pmRuns.length === 0 ? (
+                    <EmptyState
+                      title="No PM runs yet"
+                      description="Completed preventive maintenance for this equipment will appear here."
+                    />
+                  ) : (
+                    <div className="divide-y divide-gray-200">
+                      {pmRuns.map((run) => (
+                        <div key={run.id} className="px-6 py-4">
+                          <div className="flex items-center justify-between gap-4">
+                            <p className="text-sm font-medium text-gray-900">
+                              {run.profiles?.name ?? "Unknown"}
+                              {run.duration_minutes != null && (
+                                <span className="ml-2 font-normal text-gray-500">
+                                  · {run.duration_minutes} min
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500">{formatDateTime(run.completed_at)}</p>
+                          </div>
+                          {run.notes && <p className="mt-1 text-sm text-gray-600">{run.notes}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         )}
 
         {activeTab === "work_orders" && (
@@ -603,11 +830,54 @@ export default function EquipmentDetailPage() {
         )}
 
         {activeTab === "spares" && (
-          <EmptyState
-            icon={<Package />}
-            title="No spares linked"
-            description="Parts linked to this equipment will appear here once they are associated."
-          />
+          <Card>
+            <CardContent className="p-0">
+              {stockMovements.length === 0 ? (
+                <EmptyState
+                  icon={<Package />}
+                  title="No spare movements"
+                  description="Spare parts issued or returned against this equipment's work orders will appear here."
+                />
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      {["Part", "Movement", "Qty", "Reference", "Date"].map((c) => (
+                        <th key={c} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                          {c}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {stockMovements.map((m) => {
+                      const part = rel(m.spare_parts);
+                      return (
+                        <tr key={m.id}>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
+                            {part?.part_code ?? "-"}
+                            <span className="ml-2 font-normal text-gray-500">{part?.part_name ?? ""}</span>
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm capitalize text-gray-600">
+                            {m.movement_type.replace(/_/g, " ")}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-900">
+                            {m.quantity} {part?.unit ?? ""}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                            {m.reference_no ?? "-"}
+                          </td>
+                          <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                            {formatDateTime(m.created_at)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {["documents", "cost"].includes(activeTab) && (
@@ -621,19 +891,11 @@ export default function EquipmentDetailPage() {
           <Card>
             <CardContent className="p-6">
               <ERPActivityTimeline
-                items={history.map((h) => ({
-                  id: h.id,
-                  title: (
-                    <span className="flex items-center gap-2">
-                      <StatusBadge status={h.old_status ?? "n/a"} />
-                      <span className="text-gray-400">→</span>
-                      <StatusBadge status={h.new_status} />
-                    </span>
-                  ),
-                  timestamp: formatDateTime(h.changed_at),
-                  description: h.reason ?? undefined,
+                items={timelineItems.map((item) => ({
+                  ...item,
+                  timestamp: formatDateTime(item.timestamp),
                 }))}
-                emptyTitle="No status changes"
+                emptyTitle="No history yet"
               />
             </CardContent>
           </Card>

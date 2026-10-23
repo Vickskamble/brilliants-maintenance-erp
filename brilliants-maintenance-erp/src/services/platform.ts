@@ -49,11 +49,20 @@ export async function logAuditAction(
   user?: { id?: string; name?: string } | null
 ): Promise<void> {
   const supabase = createClient();
+  let userName = user?.name ?? null;
+  if (!userName && user?.id) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name")
+      .eq("id", user.id)
+      .single();
+    userName = (profile as { name?: string } | null)?.name ?? null;
+  }
   await supabase.from("audit_logs").insert({
     organization_id: scope.organizationId ?? undefined,
     plant_id: scope.plantId ?? null,
     user_id: user?.id ?? null,
-    user_name: user?.name ?? null,
+    user_name: userName,
     action: input.action,
     entity_type: input.entityType,
     entity_id: input.entityId ?? null,

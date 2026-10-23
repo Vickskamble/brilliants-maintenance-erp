@@ -10,6 +10,7 @@ import {
   type EquipmentHubRow,
 } from "@/services/kiosk";
 import { StatusBadge } from "@/components/ui/badge";
+import { PmCompleteDialog, type PmCompletionValues } from "@/components/maintenance/pm-complete-dialog";
 import { PRIORITY_LEVELS, WORK_ORDER_TYPES } from "@/lib/constants";
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ export default function KioskEquipmentHubPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "err" } | null>(null);
+  const [pmDialog, setPmDialog] = useState<{ id: string; label: string | null } | null>(null);
 
   const load = useCallback(async () => {
     const row = await getEquipmentHub(equipmentId, {
@@ -69,28 +71,27 @@ export default function KioskEquipmentHubPage() {
     }
   }
 
-  async function handlePmComplete(pm: { id: string; task_type: string | null }) {
-    const notes =
-      window.prompt(`Notes for ${pm.task_type ?? "PM"} (optional)`, "") ?? null;
-    const minutesInput = window.prompt("Time taken for this PM (minutes, optional)", "");
-    const durationMinutes = minutesInput
-      ? Math.max(0, Number(minutesInput) || 0)
-      : undefined;
-    setBusyId(pm.id);
+  async function handlePmComplete(values: PmCompletionValues) {
+    if (!pmDialog) return;
+    setBusyId(pmDialog.id);
     setMessage(null);
     const { error } = await performPm(
-      pm.id,
-      notes?.trim() || null,
+      pmDialog.id,
+      values.notes,
       { organizationId: organization?.id ?? null, plantId: plant?.id ?? null },
       { id: user?.id, name: undefined },
-      durationMinutes
+      values.durationMinutes ?? undefined,
+      values.completedAt
     );
     setBusyId(null);
     if (error) {
       setMessage({ text: `Could not complete PM: ${error}`, kind: "err" });
     } else {
+      setPmDialog(null);
       setMessage({
-        text: `PM completed. Next run scheduled automatically.`,
+        text: `PM completed on ${new Date(values.completedAt).toLocaleDateString(
+          "en-IN"
+        )}. Next run scheduled automatically.`,
         kind: "ok",
       });
       await load();
@@ -289,7 +290,12 @@ export default function KioskEquipmentHubPage() {
                 <button
                   type="button"
                   disabled={isBusy}
-                  onClick={() => void handlePmComplete(pm)}
+                  onClick={() =>
+                    setPmDialog({
+                      id: pm.id,
+                      label: pm.schedule_no ?? pm.task_type ?? null,
+                    })
+                  }
                   className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2.5 text-sm font-semibold text-white transition active:bg-amber-600 disabled:opacity-50"
                 >
                   <CheckCircle2 className="h-4 w-4" />
@@ -304,6 +310,14 @@ export default function KioskEquipmentHubPage() {
       <p className="pb-2 text-center text-[11px] text-slate-400">
         Auto-refreshes every 30 seconds
       </p>
+
+      <PmCompleteDialog
+        open={pmDialog !== null}
+        onClose={() => setPmDialog(null)}
+        scheduleLabel={pmDialog?.label ?? null}
+        isSubmitting={busyId !== null}
+        onConfirm={handlePmComplete}
+      />
     </div>
   );
 }
