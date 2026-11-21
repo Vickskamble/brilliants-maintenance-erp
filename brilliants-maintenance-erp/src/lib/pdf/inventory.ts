@@ -46,6 +46,20 @@ function fmtDate(value: string | null | undefined): string {
   });
 }
 
+function fmtDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
 function pretty(value: string | null | undefined): string {
   if (!value) return "—";
   return value.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -53,6 +67,67 @@ function pretty(value: string | null | undefined): string {
 
 function num(value: number | null | undefined): string {
   return Number(value ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+}
+
+interface PdfTableColumn {
+  label: string;
+  x: number;
+  width: number;
+  align?: "left" | "right";
+}
+
+/** Trim to the available width with an ellipsis so labels never overrun a cell. */
+function fitText(doc: Doc, value: string, width: number): string {
+  const text = String(value ?? "—");
+  if (doc.getTextWidth(text) <= width) return text;
+  let out = text;
+  while (out.length > 0 && doc.getTextWidth(`${out}…`) > width) {
+    out = out.slice(0, -1);
+  }
+  return `${out.trimEnd()}…`;
+}
+
+/** Wrap a cell into at most maxLines lines, ellipsising an overflowing last line. */
+function wrapCell(doc: Doc, value: string, width: number, maxLines: number): string[] {
+  const lines = doc.splitTextToSize(String(value ?? "—"), width) as string[];
+  if (lines.length <= maxLines) return lines.length ? lines : ["—"];
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = fitText(doc, `${kept[maxLines - 1]}…`, width);
+  return kept;
+}
+
+function cellX(column: PdfTableColumn): number {
+  return column.align === "right" ? column.x + column.width - 4 : column.x + 2;
+}
+
+/** Draw one data row and return the next y position. */
+function drawRow(
+  doc: Doc,
+  y: number,
+  columns: PdfTableColumn[],
+  values: string[],
+  options: { fontSize?: number; maxLines?: number } = {}
+): number {
+  const fontSize = options.fontSize ?? 9;
+  const maxLines = options.maxLines ?? 2;
+  const lineHeight = fontSize + 3;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(fontSize);
+  doc.setTextColor(17, 24, 39);
+
+  const cells = columns.map((column, i) =>
+    wrapCell(doc, values[i] ?? "—", column.width - 6, maxLines)
+  );
+  const rowLines = Math.max(1, ...cells.map((cell) => cell.length));
+  cells.forEach((cell, i) => {
+    const column = columns[i];
+    cell.forEach((line, lineIndex) => {
+      doc.text(line, cellX(column), y + lineHeight - 2 + lineIndex * lineHeight, {
+        align: column.align ?? "left",
+      });
+    });
+  });
+  return y + rowLines * lineHeight + 6;
 }
 
 function header(doc: Doc, title: string, docNo: string, meta: IssuePdfMeta): number {
@@ -92,18 +167,16 @@ function metaRow(doc: Doc, y: number, pairs: [string, string][]): number {
   return y + 34;
 }
 
-function tableHeader(
-  doc: Doc,
-  y: number,
-  columns: { label: string; x: number; align?: "left" | "right" }[]
-): number {
+function tableHeader(doc: Doc, y: number, columns: PdfTableColumn[]): number {
   doc.setFillColor(243, 244, 246);
   doc.rect(MARGIN, y - 12, CONTENT_W, 22, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(55, 65, 81);
-  for (const c of columns) {
-    doc.text(c.label, c.x, y + 3, { align: c.align ?? "left" });
+  for (const column of columns) {
+    doc.text(fitText(doc, column.label, column.width - 6), cellX(column), y + 3, {
+      align: column.align ?? "left",
+    });
   }
   return y + 24;
 }
@@ -186,31 +259,35 @@ export async function downloadMaterialIssuePdf(
     y += 18 + lines.length * 11;
   }
 
-  const cols = [
-    { label: "#", x: MARGIN },
-    { label: "Part Code", x: MARGIN + 22 },
-    { label: "Part Name", x: MARGIN + 118 },
-    { label: "Qty", x: PAGE_W - MARGIN - 155, align: "right" as const },
-    { label: "Unit", x: PAGE_W - MARGIN - 148 },
-    { label: "Remarks", x: PAGE_W - MARGIN - 105 },
+  const cols: PdfTableColumn[] = [
+    { label: "#", x: MARGIN, width: 16 },
+    { label: "Part Code", x: 56, width: 66 },
+    { label: "Part Name", x: 124, width: 176 },
+    { label: "Qty", x: 302, width: 56, align: "right" },
+    { label: "Unit", x: 360, width: 34 },
+    { label: "Remarks", x: 396, width: 159 },
   ];
   y = tableHeader(doc, y, cols);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
   issue.material_issue_items.forEach((item, i) => {
-    y = ensureSpace(doc, y, 20);
-    doc.setTextColor(17, 24, 39);
+    y = ensureSpace(doc, y, 44);
     const part = item.spare_parts;
     const partCode = Array.isArray(part) ? part[0]?.part_code : part?.part_code;
     const partName = Array.isArray(part) ? part[0]?.part_name : part?.part_name;
-    doc.text(String(i + 1), cols[0].x, y);
-    doc.text(partCode ?? "—", cols[1].x, y);
-    doc.text((partName ?? "—").slice(0, 38), cols[2].x, y);
-    doc.text(num(item.quantity), cols[3].x, y, { align: "right" });
-    doc.text(item.unit ?? "—", cols[4].x, y);
-    doc.text((item.remarks ?? "").slice(0, 18), cols[5].x, y);
-    y += 18;
+    y = drawRow(
+      doc,
+      y,
+      cols,
+      [
+        String(i + 1),
+        partCode ?? "—",
+        partName ?? "—",
+        num(item.quantity),
+        item.unit ?? "—",
+        item.remarks || "—",
+      ],
+      { fontSize: 9, maxLines: 2 }
+    );
   });
 
   y = ensureSpace(doc, y, 26);
@@ -287,35 +364,41 @@ export async function downloadMaterialIssueRegisterPdf(
   doc.text("Item-wise Summary", MARGIN, y);
   y += 10;
 
-  const summaryCols = [
-    { label: "#", x: MARGIN },
-    { label: "Part Code", x: MARGIN + 22 },
-    { label: "Item", x: MARGIN + 115 },
-    { label: "Unit", x: MARGIN + 300 },
-    { label: "Total Issued", x: PAGE_W - MARGIN - 110, align: "right" as const },
-    { label: "Issues", x: PAGE_W - MARGIN - 60, align: "right" as const },
-    { label: "Last Issue", x: PAGE_W - MARGIN, align: "right" as const },
+  const summaryCols: PdfTableColumn[] = [
+    { label: "#", x: MARGIN, width: 18 },
+    { label: "Part Code", x: 58, width: 66 },
+    { label: "Item", x: 128, width: 148 },
+    { label: "Unit", x: 280, width: 36 },
+    { label: "Total Issued", x: 320, width: 68, align: "right" },
+    { label: "Issues", x: 392, width: 42, align: "right" },
+    { label: "Last Issue", x: 438, width: 117, align: "right" },
   ];
   y = tableHeader(doc, y, summaryCols);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
   if (summary.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
     doc.setTextColor(107, 114, 128);
-    doc.text("No material issues found for this period.", MARGIN, y);
-    y += 18;
+    doc.text("No material issues found for this period.", MARGIN, y + 8);
+    y += 22;
   }
   summary.forEach((row, i) => {
-    y = ensureSpace(doc, y, 20);
-    doc.setTextColor(17, 24, 39);
-    doc.text(String(i + 1), summaryCols[0].x, y);
-    doc.text(row.part_code, summaryCols[1].x, y);
-    doc.text(row.part_name.slice(0, 32), summaryCols[2].x, y);
-    doc.text(row.unit || "—", summaryCols[3].x, y);
-    doc.text(num(row.total_quantity), summaryCols[4].x, y, { align: "right" });
-    doc.text(String(row.issue_count), summaryCols[5].x, y, { align: "right" });
-    doc.text(fmtDate(row.last_issue_at), summaryCols[6].x, y, { align: "right" });
-    y += 18;
+    y = ensureSpace(doc, y, 52);
+    y = drawRow(
+      doc,
+      y,
+      summaryCols,
+      [
+        String(i + 1),
+        row.part_code,
+        row.part_name,
+        row.unit || "—",
+        num(row.total_quantity),
+        String(row.issue_count),
+        fmtDateTime(row.last_issue_at),
+      ],
+      { fontSize: 8.5, maxLines: 2 }
+    );
   });
 
   y = ensureSpace(doc, y, 70);
@@ -325,26 +408,32 @@ export async function downloadMaterialIssueRegisterPdf(
   doc.text("Issue Details", MARGIN, y);
   y += 10;
 
-  const detailCols = [
-    { label: "Date", x: MARGIN },
-    { label: "Reference", x: MARGIN + 72 },
-    { label: "Item", x: MARGIN + 155 },
-    { label: "Source", x: MARGIN + 315 },
-    { label: "Qty", x: PAGE_W - MARGIN, align: "right" as const },
+  const detailCols: PdfTableColumn[] = [
+    { label: "Date", x: MARGIN, width: 90 },
+    { label: "Reference", x: 132, width: 74 },
+    { label: "Item", x: 208, width: 148 },
+    { label: "Source", x: 358, width: 76 },
+    { label: "Qty", x: 436, width: 44, align: "right" },
+    { label: "Note", x: 482, width: 73 },
   ];
   y = tableHeader(doc, y, detailCols);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
   lines.forEach((line) => {
-    y = ensureSpace(doc, y, 18);
-    doc.setTextColor(17, 24, 39);
-    doc.text(fmtDate(line.created_at), detailCols[0].x, y);
-    doc.text(line.reference_no ?? "—", detailCols[1].x, y);
-    doc.text(`${line.part_code} ${line.part_name}`.slice(0, 40), detailCols[2].x, y);
-    doc.text(MOVEMENT_LABELS[line.movement_type] ?? line.movement_type, detailCols[3].x, y);
-    doc.text(`${num(line.quantity)} ${line.unit}`.trim(), detailCols[4].x, y, { align: "right" });
-    y += 16;
+    y = ensureSpace(doc, y, 52);
+    y = drawRow(
+      doc,
+      y,
+      detailCols,
+      [
+        fmtDateTime(line.created_at),
+        line.reference_no ?? "—",
+        `${line.part_code} ${line.part_name}`,
+        MOVEMENT_LABELS[line.movement_type] ?? line.movement_type,
+        `${num(line.quantity)} ${line.unit}`.trim(),
+        line.note ?? "—",
+      ],
+      { fontSize: 8, maxLines: 2 }
+    );
   });
 
   y = ensureSpace(doc, y, 30);
