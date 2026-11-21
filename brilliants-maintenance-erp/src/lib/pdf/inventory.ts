@@ -362,7 +362,8 @@ export async function downloadMaterialIssueRegisterPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("Item-wise Summary", MARGIN, y);
-  y += 10;
+  // Leave room for the table header band; otherwise it paints over the heading.
+  y += 24;
 
   const summaryCols: PdfTableColumn[] = [
     { label: "#", x: MARGIN, width: 18 },
@@ -406,7 +407,8 @@ export async function downloadMaterialIssueRegisterPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
   doc.text("Issue Details", MARGIN, y);
-  y += 10;
+  // Keep the heading clear of the table header band.
+  y += 24;
 
   const detailCols: PdfTableColumn[] = [
     { label: "Date", x: MARGIN, width: 90 },
