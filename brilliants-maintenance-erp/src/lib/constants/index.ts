@@ -192,6 +192,8 @@ export const STOCK_MOVEMENT_TYPES = [
   { value: "adjustment", label: "Adjustment", color: "text-yellow-600 bg-yellow-50" },
   { value: "scrap_out", label: "Scrap Out", color: "text-gray-600 bg-gray-50" },
   { value: "transfer", label: "Transfer", color: "text-purple-600 bg-purple-50" },
+  { value: "mr_issue", label: "Material Request Issue", color: "text-orange-600 bg-orange-50" },
+  { value: "material_issue", label: "Material Issue", color: "text-rose-600 bg-rose-50" },
 ] as const;
 
 export const BREAKDOWN_CATEGORIES = [
@@ -366,6 +368,19 @@ export const MATERIAL_REQUEST_STATUSES = [
   { value: "ordered", label: "Ordered", color: "text-orange-600 bg-gray-50" },
   { value: "partially_received", label: "Partially Received", color: "text-yellow-600 bg-yellow-50" },
   { value: "received", label: "Received", color: "text-teal-600 bg-teal-50" },
+] as const;
+
+export const MATERIAL_ISSUE_STATUSES = [
+  { value: "issued", label: "Issued", color: "text-green-600 bg-green-50" },
+  { value: "cancelled", label: "Cancelled", color: "text-red-600 bg-red-50" },
+] as const;
+
+export const MATERIAL_ISSUE_TO_TYPES = [
+  { value: "department", label: "Department" },
+  { value: "equipment", label: "Equipment" },
+  { value: "work_order", label: "Work Order" },
+  { value: "employee", label: "Employee / Person" },
+  { value: "other", label: "Other" },
 ] as const;
 
 export const PURCHASE_ORDER_STATUSES = [

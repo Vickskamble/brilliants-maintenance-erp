@@ -18,8 +18,8 @@ All sidebar modules are delivered and routable (29 routes).
 | Breakdowns | list / new / `[id]` | CRUD, status/resolve, delete |
 | Maintenance | list / new / `[id]` | Preventive schedule CRUD, pause/resume |
 | Inspections | list / new / `[id]` | CRUD, status + result updates |
-| Spare Parts | list / new / `[id]` / `[id]/edit` / `[id]/stock` | CRUD + stock movements |
-| Inventory | `/inventory` | Stock levels + recent movements |
+| Spare Parts | list / new / `[id]` / `[id]/edit` / `[id]/stock` | CRUD + stock movements + issue history |
+| Inventory | `/inventory` + `/inventory/issues` (+ `new`, `[id]`, `register`) | Stock levels, recent movements, material issues with print/PDF and item-wise register |
 | Vendors | list / new / `[id]` | CRUD |
 | Reports | `/reports` | Overview stats + status breakdowns |
 | Calibration / Shutdowns | placeholders | "Coming soon" per decision |
@@ -35,6 +35,9 @@ All sidebar modules are delivered and routable (29 routes).
   intentionally diverges from the official spec for inventory/maintenance
   (e.g. `current_stock` + `stock_movements` instead of `spare_stocks` +
   `stock_transactions`).
+- `public.material_issue_items`/`material_issues` are the only inventory tables with org-scoped
+  RLS enabled (same `app_current_org_id()` pattern as `stock_adjustments`); the older stock
+  tables still rely on app-side org filters.
 
 ## Verification
 

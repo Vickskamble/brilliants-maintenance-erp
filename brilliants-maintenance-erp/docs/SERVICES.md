@@ -129,7 +129,8 @@ Types (`src/services/spare-parts/types.ts`):
 |---|---|---|
 | `equipment.ts` | `equipmentSchema`, `criticalitySchema`, `assetCategorySchema`, `equipmentComponentSchema` | required `equipment_code/name/plant_id`; statuses as enums; numeric score fields coerced nullable |
 | `work-orders.ts` | `workOrderSchema`, `workOrderStatusSchema` | required `work_order_no`, `plant_id`, `title`; `.refine` `planned_end >= planned_start`; type/priority/status enums |
-| `spare-parts.ts` | `sparePartSchema`, `sparePartPlantSchema`, `stockMovementSchema` | `part_code` 2–30; `.refine` `reorder_level >= min_stock`; movement `quantity > 0`; movement types enum (incl. `transfer`, excl. `transfer_in/out`) |
+| `spare-parts.ts` | `sparePartSchema`, `sparePartPlantSchema`, `stockMovementSchema` | `part_code` 2–30; `.refine` `reorder_level >= min_stock`; movement `quantity > 0`; movement types enum (incl. `transfer`, `mr_issue`, `material_issue`, excl. `transfer_in/out`) |
+| `material-issues.ts` | `materialIssueSchema`, `materialIssueLineSchema` | required `issue_date`, `plant_id`, `issued_to_type`, at least one item; recipient depends on `issued_to_type` (`department_id` / `equipment_id` / `work_order_id` / `issued_to_name`) |
 | `breakdowns.tsx` | `breakdownSchema` + default export **`BreakdownForm`** (shared react-hook-form component) | required `report_no/title/plant_id/equipment_id/category/reported_at`; diagnosis/repair fields optional |
 
 ## Page ↔ service usage map (which services the pages call)
@@ -139,6 +140,10 @@ Types (`src/services/spare-parts/types.ts`):
 - `/breakdowns*` → flat `breakdowns.ts` + shared `BreakdownForm`.
 - `/spare-parts*` and `/inventory` → flat `spare-parts.ts` (detail/components/history) and the
   directory module service for list/detail/stock; `stock` page writes `stock_movements` directly.
+- `/inventory/issues*` → `material-issues.ts` (`listMaterialIssues`, `getMaterialIssueById`,
+  `createMaterialIssue`, `cancelMaterialIssue`, `listItemIssueRegister`) + `lib/pdf/inventory.ts`
+  for the slip and register PDFs. Every line goes through `stock-movements.ts`
+  (`applyStockMovement`), which owns the per-plant mirror updates.
 - `/maintenance*` → flat `maintenance.ts`.
 - `/vendors*`, `/inspections*`, `/reports`, `/dashboard` → inline Supabase queries in the page
   (no service module for these).

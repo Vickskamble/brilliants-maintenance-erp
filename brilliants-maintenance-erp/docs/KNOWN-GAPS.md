@@ -58,9 +58,11 @@ Status snapshot and known issues, last reviewed 2026-09-23 (post gap-fix batch).
 ## Still open
 
 7. **Spare-part stock triple mirrors** — `spare_part_plants` (list page), `spare_part_stock`
-   (detail page relation), `spare_part_stock_movements` (legacy service history) overlap with
-   the `stock_movements` ledger. All are fed by the same trigger today; the legacy
-   `spare_part_stock_movements` table is never written by any page or trigger.
+   (detail page relation), `spare_part_stock_movements` (service history mirror) overlap with
+   the `stock_movements` ledger. `sync_spare_part_plant` only fires for `purchase_in` /
+   `transfer` / `return_in`; `applyStockMovement` therefore adjusts both per-plant tables itself
+   for every other type (issues, breakdown use, adjustments, scrap), clamping at zero. The
+   per-plant numbers are display-only — stock validation uses `spare_parts.current_stock`.
 11. **Profiles: department link is loose** — `profiles.department_id` is unconstrained (typed
     `uuid`, no FK to `departments`).
 12. **Legacy flat services vs directory modules** — `equipment.ts`, `work-orders.ts`,

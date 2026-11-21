@@ -55,6 +55,8 @@ export const stockMovementSchema = z.object({
     "adjustment",
     "scrap_out",
     "transfer",
+    "mr_issue",
+    "material_issue",
   ]),
   quantity: z.coerce.number().refine((n) => n > 0, {
     message: "Quantity must be greater than zero",

@@ -23,6 +23,8 @@ import {
   ShoppingCart,
   PackageCheck,
   Star,
+  PackageMinus,
+  BarChart3,
 } from "lucide-react";
 
 interface SparePartStockItem {
@@ -56,6 +58,8 @@ const MOVEMENT_LABELS: Record<string, string> = {
   adjustment: "Adjustment",
   scrap_out: "Scrap Out",
   transfer: "Transfer",
+  mr_issue: "MR Issue",
+  material_issue: "Material Issue",
 };
 
 export default function InventoryPage() {
@@ -171,7 +175,7 @@ export default function InventoryPage() {
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <Link href="/inventory/requests">
                 <Card className="transition hover:border-blue-300 hover:shadow-sm">
                   <CardContent className="flex items-center gap-3 p-4">
@@ -235,6 +239,40 @@ export default function InventoryPage() {
                       </p>
                       <p className="text-xs text-gray-500">
                         Rate vendor performance
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/inventory/issues">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-50">
+                      <PackageMinus className="h-4 w-4 text-rose-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Material Issues
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Issue stock and print slips
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+              <Link href="/inventory/issues/register">
+                <Card className="transition hover:border-blue-300 hover:shadow-sm">
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50">
+                      <BarChart3 className="h-4 w-4 text-indigo-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Item-wise Issue Register
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Item-wise issued quantity
                       </p>
                     </div>
                   </CardContent>

@@ -6,6 +6,7 @@
 |---|---|
 | `supabase/migrations/20260921100000_spare_parts.sql` | Inventory module: `spare_parts`, `spare_part_plants`, `stock_movements`, sync triggers, `set_updated_at` trigger function |
 | `supabase/migrations/20260923100000_app_schema.sql` | App-first schema: everything else the app queries (identity/RBAC, asset master, equipment, work management, inspections, inventory complements, per-plant stock, indexes, extended sync trigger) |
+| `supabase/migrations/20261121090000_material_issues.sql` | Material issue header/lines (`material_issues`, `material_issue_items`), org-scoped RLS, and the `material_issue` movement type |
 
 Both are idempotent (`create table if not exists`, `add column if not exists`) and safe to run
 in any order. Apply with `npx supabase db push` (or paste into the Supabase SQL editor).
@@ -209,10 +210,27 @@ relation `spare_part_stock`): `id PK`, `spare_part_id FK→spare_parts ON DELETE
 extended here by `add column if not exists plant_id`):
 `id PK`, `part_id FK→spare_parts ON DELETE CASCADE`,
 `movement_type NN CHECK (∈ purchase_in, return_in, workorder_issue, breakdown_use, adjustment,
-scrap_out, transfer)`, `quantity NN CHECK (<> 0)`, `from_plant_id FK→plants`,
+scrap_out, transfer, mr_issue, material_issue)`, `quantity NN CHECK (<> 0)`, `from_plant_id FK→plants`,
 `to_plant_id FK→plants`, `work_order_id FK→work_orders`, `reference_no`, `note`,
 `created_by FK→auth.users`, `created_at`, plus added `plant_id FK→plants`.
 Indexes: `part_id`, `created_at desc`. The inventory service filters on `plant_id`.
+
+**`material_issues`** — material issue slip header (`MI-<year>-####`):
+`id PK`, `organization_id FK→organizations ON DELETE CASCADE`, `plant_id FK→plants`,
+`issue_no` (`UNIQUE(organization_id, issue_no)`), `issue_date`, `issued_to_type`
+(`department | equipment | work_order | employee | other`), `department_id`, `equipment_id`,
+`work_order_id`, `issued_to_name`, `purpose`, `remarks`, `status` (`issued | cancelled`),
+`created_by`, `cancelled_by`, `cancelled_at`, `cancel_reason`, timestamps.
+
+**`material_issue_items`** — one line per item:
+`id PK`, `material_issue_id FK→material_issues ON DELETE CASCADE`,
+`organization_id`, `plant_id`, `spare_part_id FK→spare_parts ON DELETE RESTRICT`,
+`quantity integer CHECK (> 0)`, `unit`, `remarks`, `stock_movement_id FK→stock_movements`,
+`created_at`.
+
+> Each line writes a `stock_movements` row of type `material_issue` (negative quantity). Nothing
+> is updated in `spare_parts` directly. Cancelling writes compensating `return_in` movements and
+> flips the header to `cancelled`, so the ledger keeps full history.
 
 ## Functions & triggers
 

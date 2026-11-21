@@ -5,12 +5,17 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ERPLayout } from "@/components/layout/erp-layout";
 import { PageHeader } from "@/components/common/page-header";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LoadingPage } from "@/components/common/loading";
 import { EmptyState } from "@/components/common/empty-state";
 import { createClient } from "@/lib/supabase/client";
+import { useQueryScope } from "@/lib/auth/query-scope";
 import { SPARE_PART_CATEGORIES, SPARE_PART_UNITS } from "@/lib/constants";
+import {
+  listItemIssueRegister,
+  type ItemIssueLine,
+} from "@/services/material-issues";
 import { MetadataRow } from "@/components/common/metadata-row";
 import {
   Table,
@@ -43,26 +48,42 @@ export default function SparePartDetailPage() {
   const id = typeof params.id === "string" ? params.id : "";
   const router = useRouter();
   const supabase = createClient();
+  const scope = useQueryScope();
 
   const [sparePart, setSparePart] = useState<SparePartDetail | null>(null);
+  const [issueLines, setIssueLines] = useState<ItemIssueLine[]>([]);
+  const [issueTotal, setIssueTotal] = useState(0);
+  const [issueCount, setIssueCount] = useState(0);
+  const [lastIssueAt, setLastIssueAt] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   async function load() {
-    const { data } = await supabase
-      .from("spare_parts")
-      .select(
-        `id, part_code, part_name, category, unit, min_stock, reorder_level, location, description,
-         plants(name),
-         spare_part_stock(plant:plants(name), quantity)`
-      )
-      .eq("id", id)
-      .single();
+    const [{ data }, issueRes] = await Promise.all([
+      supabase
+        .from("spare_parts")
+        .select(
+          `id, part_code, part_name, category, unit, min_stock, reorder_level, location, description,
+           plants(name),
+           spare_part_stock(plant:plants(name), quantity)`
+        )
+        .eq("id", id)
+        .single(),
+      listItemIssueRegister(scope, { partId: id, limit: 200 }),
+    ]);
     if (data) setSparePart(data as unknown as SparePartDetail);
+
+    const summary = issueRes.data.summary[0];
+    setIssueTotal(summary?.total_quantity ?? 0);
+    setIssueCount(summary?.issue_count ?? 0);
+    setLastIssueAt(summary?.last_issue_at ?? null);
+    setIssueLines(issueRes.data.lines.slice(0, 6));
+
     setIsLoading(false);
   }
 
@@ -198,6 +219,76 @@ export default function SparePartDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle>Issue History (till date)</CardTitle>
+            <Link
+              href={`/inventory/issues/register?part=${sparePart.id}`}
+              className="text-sm font-medium text-blue-600 hover:underline"
+            >
+              Open item-wise register →
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="grid grid-cols-1 gap-4 border-b border-gray-100 px-6 py-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500">Total Issued</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900">
+                {issueTotal} {sparePart.unit}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500">Issue Transactions</p>
+              <p className="mt-1 text-xl font-semibold text-gray-900">{issueCount}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wider text-gray-500">Last Issued</p>
+              <p className="mt-1 text-sm font-medium text-gray-900">
+                {lastIssueAt ? new Date(lastIssueAt).toLocaleString("en-IN") : "—"}
+              </p>
+            </div>
+          </div>
+
+          {issueLines.length === 0 ? (
+            <EmptyState
+              title="No issues yet"
+              description="Material issued from the store for this item will appear here."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {issueLines.map((line) => (
+                  <TableRow key={line.id}>
+                    <TableCell className="whitespace-nowrap text-sm text-gray-600">
+                      {new Date(line.created_at).toLocaleDateString("en-IN")}
+                    </TableCell>
+                    <TableCell className="font-mono text-sm text-gray-700">
+                      {line.reference_no ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {line.movement_type.replace(/_/g, " ")}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-semibold text-gray-900">
+                      {line.quantity} {line.unit}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </ERPLayout>
   );
 }

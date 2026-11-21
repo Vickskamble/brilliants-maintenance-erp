@@ -112,7 +112,10 @@ function pad(n: number, width = 4): string {
   return String(n).padStart(width, "0");
 }
 
-export function nextDocNo(prefix: "MR" | "PO" | "GRN", existing: string[]): string {
+export function nextDocNo(
+  prefix: "MR" | "PO" | "GRN" | "MI",
+  existing: string[]
+): string {
   const year = new Date().getFullYear();
   const prefixYear = `${prefix}-${year}-`;
   const maxSeq = existing

@@ -493,6 +493,29 @@ flagged **Low Stock** — visible on the dashboard and in the inventory list.
 - **GRN** (`/inventory/grn`): goods-receipt posts the receipt and increases
   stock for the received quantity.
 
+### 15.5 Material issues (`/inventory/issues`)
+
+Use this when the store physically hands material to a department, equipment,
+work order or person (for example issuing petrol or a bearing).
+
+1. **Issue Material** (`/inventory/issues/new`) — pick plant, date and recipient
+   (department / equipment / work order / employee), add one or more items with
+   quantity, then save. Stock decreases immediately and each line is written to
+   the stock ledger as a **Material Issue** movement.
+2. **Issue slip** (`/inventory/issues/[id]`) — **Print** or **PDF** a signed
+   hand-over slip (issued by / received by / store in-charge).
+3. **Cancel** an issue (needs `inventory.approve`) with a reason. Stock is put
+   back through return-in movements; the slip is kept as cancelled for audit.
+4. **Item-wise register** (`/inventory/issues/register`) — select an item and
+   leave the dates empty to see **how much has been issued till date**, or set a
+   from/to range. It also includes MR issues, work-order issues and breakdown
+   usage, and can be printed or downloaded as PDF.
+5. A spare part's detail page shows its **Issue History (till date)** card with
+   a shortcut to the same register.
+
+> Cancelled issues are excluded from register totals. Issues are validated
+> against the item's global `current_stock`, not the per-plant mirror.
+
 ---
 
 ## 16. Vendors & Procurement

@@ -70,10 +70,14 @@ vendors).
 |---|---|---|---|---|
 | `/spare-parts` | `src/app/spare-parts/page.tsx` | List (custom `Table` + hand-rolled pagination; low-stock / out-of-stock filters) | `spare_parts` (+ `plants`); options: `plants` | ✅ |
 | `/spare-parts/new` | `src/app/spare-parts/new/page.tsx` | Create form (zod) | `spare_parts` insert (`initial_quantity` → `current_stock`) | ✅ |
-| `/spare-parts/[id]` | `src/app/spare-parts/[id]/page.tsx` | Detail + per-plant stock table + delete | `spare_parts` (+ `plants`, relation `spare_part_stock`) | ✅ |
+| `/spare-parts/[id]` | `src/app/spare-parts/[id]/page.tsx` | Detail + per-plant stock table + issue history (till date) + delete | `spare_parts` (+ `plants`, relations `spare_part_stock`, `stock_movements`) | ✅ |
 | `/spare-parts/[id]/edit` | `src/app/spare-parts/[id]/edit/page.tsx` | Edit form (zod) | `spare_parts` update | ✅ |
 | `/spare-parts/[id]/stock` | `src/app/spare-parts/[id]/stock/page.tsx` | Record stock movement | `spare_parts` update (`current_stock`), `stock_movements` insert; options: `plants` (loaded, not submitted) | ✅ |
-| `/inventory` | `src/app/inventory/page.tsx` | Stock overview + recent movements | `spare_parts`, `stock_movements` (+ `spare_parts`) | ✅ |
+| `/inventory` | `src/app/inventory/page.tsx` | Stock overview + recent movements + material issue links | `spare_parts`, `stock_movements` (+ `spare_parts`) | ✅ |
+| `/inventory/issues` | `src/app/inventory/issues/page.tsx` | Material issue list (status/date filters, PDF per slip) | `material_issues` (+ `material_issue_items`, `departments`, `equipment`, `work_orders`) | ✅ |
+| `/inventory/issues/new` | `src/app/inventory/issues/new/page.tsx` | Create issue slip with multi-line items (zod) | `material_issues`, `material_issue_items`, `stock_movements` insert | ✅ |
+| `/inventory/issues/[id]` | `src/app/inventory/issues/[id]/page.tsx` | Detail + print + PDF + cancel (reverses stock) | `material_issues` update, `stock_movements` insert | ✅ |
+| `/inventory/issues/register` | `src/app/inventory/issues/register/page.tsx` | Item-wise issued quantity, till date or date range; print/PDF | `stock_movements` (all issue types), `spare_parts` | ✅ |
 
 ## Vendors
 
